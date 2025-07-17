@@ -5,6 +5,10 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
 from drf_spectacular.utils import extend_schema, extend_schema_view
+import logging
+
+# Logger específico para este módulo
+logger = logging.getLogger(__name__)
 
 from .models import (
     Usuario, EstadoChat, Profesional, Cliente, Producto,
@@ -320,25 +324,39 @@ class CitaViewSet(viewsets.ModelViewSet):
         
         Ambos parámetros filtran por la fecha de inicio de la cita.
         """
+        logger.info("=== INICIO - Endpoint por_fecha llamado ===")
+        
         fecha_inicio = request.query_params.get('fecha_inicio', None)
         fecha_fin = request.query_params.get('fecha_fin', None)
+        
+        logger.info(f"Parámetros recibidos - fecha_inicio: {fecha_inicio}, fecha_fin: {fecha_fin}")
         
         queryset = self.get_queryset()
         
         if fecha_inicio:
+            logger.info(f"APLICANDO FILTRO fecha_inicio >= {fecha_inicio}")
             # Usar __date para comparar solo la fecha, sin hora
             queryset = queryset.filter(fecha_hora_inicio__date__gte=fecha_inicio)
+            
         if fecha_fin:
+            logger.info(f"APLICANDO FILTRO fecha_fin <= {fecha_fin}")
             # Usar __date para comparar solo la fecha, sin hora
             queryset = queryset.filter(fecha_hora_inicio__date__lte=fecha_fin)
         
+        # Logging del SQL generado
+        logger.debug(f"SQL Query generado: {queryset.query}")
+        
+
         # Usar paginación como en el list normal
         page = self.paginate_queryset(queryset)
         if page is not None:
+            logger.info(f"Aplicando paginación - Items en página actual: {len(page)}")
             serializer = CitaListSerializer(page, many=True)
+            logger.info("=== FIN - Retornando resultados paginados ===")
             return self.get_paginated_response(serializer.data)
             
         serializer = CitaListSerializer(queryset, many=True)
+        logger.info(f"=== FIN - Retornando todos los resultados ({len(serializer.data)} items) ===")
         return Response(serializer.data)
 
     @extend_schema(
