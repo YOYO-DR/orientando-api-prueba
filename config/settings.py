@@ -256,3 +256,24 @@ CORS_EXPOSE_HEADERS = [
 
 # Preflight request cache
 CORS_PREFLIGHT_MAX_AGE = 86400  # 24 horas
+
+# ========================================
+# CSRF Configuration for Production
+# ========================================
+
+# Dominios confiables para CSRF (desde variable de entorno)
+CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'https://orien-prueba.yoyodr.dev,http://localhost:8000,http://127.0.0.1:8000').split(',')
+
+# Configuración adicional de CSRF para producción
+CSRF_COOKIE_SECURE = not DEBUG  # Solo HTTPS en producción
+CSRF_COOKIE_HTTPONLY = False  # Permitir acceso desde JavaScript si es necesario
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_NAME = 'csrftoken'
+
+# Headers de CSRF
+CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
+
+# Configuración de sesiones para CSRF
+SESSION_COOKIE_SECURE = not DEBUG  # Solo HTTPS en producción
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
