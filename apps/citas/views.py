@@ -326,10 +326,17 @@ class CitaViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset()
         
         if fecha_inicio:
-            queryset = queryset.filter(fecha_hora_inicio__gte=fecha_inicio)
+            # Usar __date para comparar solo la fecha, sin hora
+            queryset = queryset.filter(fecha_hora_inicio__date__gte=fecha_inicio)
         if fecha_fin:
-            # Comparar con fecha_hora_inicio, no con fecha_hora_fin
-            queryset = queryset.filter(fecha_hora_inicio__lte=fecha_fin)
+            # Usar __date para comparar solo la fecha, sin hora
+            queryset = queryset.filter(fecha_hora_inicio__date__lte=fecha_fin)
+        
+        # Usar paginación como en el list normal
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = CitaListSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
             
         serializer = CitaListSerializer(queryset, many=True)
         return Response(serializer.data)
