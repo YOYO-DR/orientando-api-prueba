@@ -56,6 +56,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -143,8 +144,15 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Configuración adicional para servir archivos estáticos
 STATICFILES_DIRS = []
 
+# WhiteNoise configuration para servir archivos estáticos eficientemente
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 # En producción, usar almacenamiento estático optimizado
 if not DEBUG:
+    # WhiteNoise se encarga de los archivos estáticos
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+else:
+    # En desarrollo, usar el almacenamiento por defecto
     STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
 # Configuración adicional para asegurar que los directorios existan
