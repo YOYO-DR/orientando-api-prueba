@@ -17,6 +17,8 @@ services:
       SECRET_KEY: ${DJANGO_SECRET_KEY:-django-insecure-6*+xxjrz7@1wn1^vz5=!rb=w5m2$e*sc4i52x3_sbb=_@-_x*4}
       ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,orien-prueba.yoyodr.dev}
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-https://orien-prueba.yoyodr.dev,http://localhost:8000,http://127.0.0.1:8000}
+      # Configuración de Gunicorn
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
       # Variables de BD externa (configuradas en Dokploy)
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
@@ -35,7 +37,7 @@ services:
              ls -la /app/staticfiles/ &&
              test -f /app/staticfiles/admin/css/base.css && echo 'Admin CSS encontrado' || echo 'ERROR: Admin CSS no encontrado' &&
              echo 'Iniciando Gunicorn...' &&
-             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120"
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers $${GUNICORN_WORKERS:-3} --timeout 120"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/admin/"]

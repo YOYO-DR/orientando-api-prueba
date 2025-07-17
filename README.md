@@ -181,6 +181,21 @@ python manage.py collectstatic
 | `SECRET_KEY` | Clave secreta de Django | (requerida) |
 | `DEBUG` | Modo debug | `True` |
 | `ALLOWED_HOSTS` | Hosts permitidos | `localhost,127.0.0.1` |
+| `GUNICORN_WORKERS` | Número de workers de Gunicorn | `3` |
+| `PAGE_SIZE` | Elementos por página en API | `20` |
+
+### Configuración de Gunicorn Workers
+
+La cantidad de workers de Gunicorn se puede configurar usando la variable `GUNICORN_WORKERS`:
+
+- **Desarrollo**: 2-3 workers
+- **Producción pequeña (1-2 cores)**: 3-4 workers  
+- **Producción media (4 cores)**: 5-6 workers
+- **Producción grande (8+ cores)**: 8-10 workers
+
+**Regla general**: `(CPU cores × 2) + 1`
+
+Ver más detalles en: [GUNICORN_CONFIG.md](GUNICORN_CONFIG.md)
 
 ## Tecnologías Utilizadas
 
