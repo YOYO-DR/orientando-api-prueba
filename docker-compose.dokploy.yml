@@ -23,11 +23,11 @@ services:
       DB_PORT: ${DB_PORT}
     command: >
       sh -c "mkdir -p /app/staticfiles /app/media &&
-             ./wait-for-postgres.sh db 5432 &&
+             ./wait-for-postgres.sh $DB_HOST $DB_PORT &&
              python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput --clear &&
              gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120"
-             
+
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/admin/"]
