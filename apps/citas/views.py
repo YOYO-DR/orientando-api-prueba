@@ -188,6 +188,9 @@ class ClienteViewSet(viewsets.ModelViewSet):
         """
         Crear cliente completo con usuario y estado de chat
         
+        IMPORTANTE: La respuesta incluye el ID del Usuario (no del modelo Cliente)
+        para que el bot use ese ID en futuras actualizaciones.
+        
         Estructura esperada del JSON:
         {
             "usuario": {
@@ -214,6 +217,16 @@ class ClienteViewSet(viewsets.ModelViewSet):
                     "contexto": "cliente_nuevo"
                 }
             }
+        }
+        
+        Respuesta exitosa:
+        {
+            "id": 123,  // ID del Usuario - usar este para actualizaciones
+            "usuario": { ... },
+            "edad": 25,
+            "barrio": "Centro",
+            // ... otros campos
+            "message": "Cliente creado exitosamente"
         }
         """
         logger.info("=== INICIO - Creando cliente completo ===")

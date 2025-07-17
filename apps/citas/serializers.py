@@ -105,6 +105,13 @@ class ClienteSerializer(serializers.ModelSerializer):
         if value is not None and (value < 0 or value > 120):
             raise serializers.ValidationError("La edad debe estar entre 0 y 120 años")
         return value
+    
+    def to_representation(self, instance):
+        """Personalizar la representación del cliente para incluir el nombre completo"""
+        representation = super().to_representation(instance)
+        # Quitar el ID del cliente y solo dejar el ID del modelo usuario
+        representation.pop('id')
+        return representation
 
 
 class ProductoSerializer(serializers.ModelSerializer):
