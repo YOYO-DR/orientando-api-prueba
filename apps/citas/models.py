@@ -31,7 +31,7 @@ class Usuario(models.Model):
     tipo_documento = models.CharField(max_length=30, choices=TipoDocumentoEnum.choices)
     numero_documento = models.CharField(max_length=100, unique=True)
     email = models.EmailField(max_length=255, unique=True, null=True, blank=True)
-    celular = models.CharField(max_length=20, unique=True)
+    celular = models.CharField(max_length=20)
     tipo = models.CharField(max_length=20, choices=TipoUsuarioEnum.choices)
 
     def __str__(self):
