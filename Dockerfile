@@ -27,10 +27,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar el código del proyecto
 COPY . /app/
 
-# Crear directorio para archivos estáticos
+# Crear directorios necesarios
 RUN mkdir -p /app/staticfiles
-
-# Crear directorio para logs
+RUN mkdir -p /app/media
 RUN mkdir -p /app/logs
 
 # Crear script para esperar a que PostgreSQL esté listo
@@ -60,13 +59,19 @@ set -e\n\
 # Esperar a que PostgreSQL esté disponible\n\
 ./wait-for-postgres.sh db 5432\n\
 \n\
+# Crear directorios si no existen\n\
+echo "Creando directorios necesarios..."\n\
+mkdir -p /app/staticfiles\n\
+mkdir -p /app/media\n\
+mkdir -p /app/logs\n\
+\n\
 # Ejecutar migraciones\n\
 echo "Aplicando migraciones..."\n\
 python manage.py migrate --noinput\n\
 \n\
 # Recopilar archivos estáticos\n\
 echo "Recopilando archivos estáticos..."\n\
-python manage.py collectstatic --noinput\n\
+python manage.py collectstatic --noinput --clear\n\
 \n\
 # Crear superusuario si no existe\n\
 echo "Verificando superusuario..."\n\

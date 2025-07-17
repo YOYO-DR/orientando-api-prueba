@@ -27,8 +27,8 @@ services:
   web:
     build: .
     container_name: orientando_web
-    # ports:
-      # - "80:8000"  # Exponer directamente en puerto 80
+    ports:
+      - "8000:8000"  # Exponer puerto para Dokploy
     volumes:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
@@ -43,9 +43,10 @@ services:
       DB_HOST: db
       DB_PORT: 5432
     command: >
-      sh -c "./wait-for-postgres.sh db 5432 &&
+      sh -c "mkdir -p /app/staticfiles /app/media &&
+             ./wait-for-postgres.sh db 5432 &&
              python manage.py migrate --noinput &&
-             python manage.py collectstatic --noinput &&
+             python manage.py collectstatic --noinput --clear &&
              gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120"
     depends_on:
       db:
