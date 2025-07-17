@@ -193,7 +193,7 @@ class ClienteViewSet(viewsets.ModelViewSet):
             "usuario": {
                 "nombres": "Juan",
                 "apellidos": "Pérez",
-                "tipo_documento": "CEDULA",
+                "tipo_documento": "CC",
                 "numero_documento": "12345678",
                 "email": "juan@email.com",
                 "telefono": "3001234567"

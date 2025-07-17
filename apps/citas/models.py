@@ -5,8 +5,8 @@ import string
 
 
 class TipoDocumentoEnum(models.TextChoices):
-    CC = 'Cédula de Ciudadanía', _('Cédula de Ciudadanía')
-    TI = 'Tarjeta de Identidad', _('Tarjeta de Identidad')
+    CC = 'CC', _('Cédula de Ciudadanía')
+    TI = 'TI', _('Tarjeta de Identidad')
     NIT = 'NIT', _('NIT')
 
 
