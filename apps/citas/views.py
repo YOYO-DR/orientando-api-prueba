@@ -258,12 +258,12 @@ class ClienteViewSet(viewsets.ModelViewSet):
                 
                 # 3. Crear Cliente
                 cliente_data = {
-                    'usuario': usuario.id,
+                    'usuario_id': usuario.id,
                     'edad': data.get('edad'),
                     'barrio': data.get('barrio'),
                     'colegio': data.get('colegio'),
                     'remitido_colegio': data.get('remitido_colegio', False),
-                    'estado_chat': estado_chat.id if estado_chat else None
+                    'estado_chat_id': estado_chat.id if estado_chat else None
                 }
                 
                 cliente_serializer = ClienteSerializer(data=cliente_data)
@@ -371,6 +371,7 @@ class ClienteViewSet(viewsets.ModelViewSet):
                         
                         nuevo_estado_chat = estado_chat_serializer.save()
                         instance.estado_chat = nuevo_estado_chat
+                        instance.save()  # Guardar la instancia cliente con el nuevo estado_chat
                         logger.info(f"Nuevo EstadoChat creado - ID: {nuevo_estado_chat.id}")
                 
                 # 3. Actualizar Cliente

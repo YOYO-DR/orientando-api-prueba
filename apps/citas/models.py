@@ -61,7 +61,7 @@ class Cliente(models.Model):
     edad = models.PositiveIntegerField(null=True, blank=True)
     barrio = models.CharField(max_length=255, null=True, blank=True)
     direccion = models.CharField(max_length=255, null=True, blank=True)
-    remitido_colegio = models.BooleanField(default=False)
+    remitido_colegio = models.BooleanField(default=False, null=True, blank=True)
     colegio = models.CharField(max_length=255, null=True, blank=True)
     estado_chat = models.ForeignKey(EstadoChat, null=True, blank=True, on_delete=models.SET_NULL)
 
