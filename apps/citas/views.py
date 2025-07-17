@@ -184,6 +184,227 @@ class ClienteViewSet(viewsets.ModelViewSet):
     ordering_fields = ['usuario__nombres', 'edad']
     ordering = ['usuario__nombres']
 
+    def create(self, request, *args, **kwargs):
+        """
+        Crear cliente completo con usuario y estado de chat
+        
+        Estructura esperada del JSON:
+        {
+            "usuario": {
+                "nombres": "Juan",
+                "apellidos": "Pérez",
+                "tipo_documento": "CEDULA",
+                "numero_documento": "12345678",
+                "email": "juan@email.com",
+                "telefono": "3001234567"
+            },
+            "edad": 25,
+            "barrio": "Centro",
+            "colegio": "Colegio Nacional",
+            "remitido_colegio": true,
+            "estado_chat": {
+                "numero_whatsapp": "573001234567",
+                "estado_conversacion": {
+                    "fase": "recoleccion_datos",
+                    "step": "datos_personales",
+                    "datos_recolectados": {
+                        "nombre": "Juan",
+                        "documento": "12345678"
+                    },
+                    "contexto": "cliente_nuevo"
+                }
+            }
+        }
+        """
+        logger.info("=== INICIO - Creando cliente completo ===")
+        
+        data = request.data
+        logger.info(f"Datos recibidos: {data}")
+        
+        try:
+            from django.db import transaction
+            
+            with transaction.atomic():
+                # 1. Crear Usuario
+                usuario_data = data.get('usuario', {})
+                if not usuario_data:
+                    return Response({'error': 'Datos de usuario son requeridos'}, 
+                                  status=status.HTTP_400_BAD_REQUEST)
+                
+                # Asegurar que el tipo de usuario sea CLIENTE
+                usuario_data['tipo'] = TipoUsuarioEnum.CLIENTE
+                
+                usuario_serializer = UsuarioSerializer(data=usuario_data)
+                if not usuario_serializer.is_valid():
+                    logger.error(f"Error validando usuario: {usuario_serializer.errors}")
+                    return Response({'error': 'Datos de usuario inválidos', 'detalles': usuario_serializer.errors}, 
+                                  status=status.HTTP_400_BAD_REQUEST)
+                
+                usuario = usuario_serializer.save()
+                logger.info(f"Usuario creado - ID: {usuario.id}, Nombre: {usuario.nombres} {usuario.apellidos}")
+                
+                # 2. Crear EstadoChat si se proporciona
+                estado_chat = None
+                estado_chat_data = data.get('estado_chat')
+                if estado_chat_data:
+                    estado_chat_serializer = EstadoChatSerializer(data=estado_chat_data)
+                    if not estado_chat_serializer.is_valid():
+                        logger.error(f"Error validando estado chat: {estado_chat_serializer.errors}")
+                        return Response({'error': 'Datos de estado chat inválidos', 'detalles': estado_chat_serializer.errors}, 
+                                      status=status.HTTP_400_BAD_REQUEST)
+                    
+                    estado_chat = estado_chat_serializer.save()
+                    logger.info(f"EstadoChat creado - ID: {estado_chat.id}, WhatsApp: {estado_chat.numero_whatsapp}")
+                
+                # 3. Crear Cliente
+                cliente_data = {
+                    'usuario': usuario.id,
+                    'edad': data.get('edad'),
+                    'barrio': data.get('barrio'),
+                    'colegio': data.get('colegio'),
+                    'remitido_colegio': data.get('remitido_colegio', False),
+                    'estado_chat': estado_chat.id if estado_chat else None
+                }
+                
+                cliente_serializer = ClienteSerializer(data=cliente_data)
+                if not cliente_serializer.is_valid():
+                    logger.error(f"Error validando cliente: {cliente_serializer.errors}")
+                    return Response({'error': 'Datos de cliente inválidos', 'detalles': cliente_serializer.errors}, 
+                                  status=status.HTTP_400_BAD_REQUEST)
+                
+                cliente = cliente_serializer.save()
+                logger.info(f"Cliente creado - ID: {cliente.id}")
+                
+                # 4. Retornar cliente completo
+                cliente_completo = Cliente.objects.select_related('usuario', 'estado_chat').get(id=cliente.id)
+                response_serializer = ClienteSerializer(cliente_completo)
+                
+                logger.info("=== FIN - Cliente completo creado exitosamente ===")
+                return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+                
+        except Exception as e:
+            logger.error(f"Error creando cliente completo: {str(e)}")
+            return Response({'error': 'Error interno del servidor', 'detalles': str(e)}, 
+                          status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def update(self, request, *args, **kwargs):
+        """
+        Actualizar cliente completo con usuario y estado de chat
+        
+        Estructura esperada del JSON (todos los campos opcionales):
+        {
+            "usuario": {
+                "nombres": "Juan Carlos",
+                "apellidos": "Pérez García",
+                "email": "juan.nuevo@email.com",
+                "telefono": "3009876543"
+            },
+            "edad": 26,
+            "barrio": "Zona Norte",
+            "colegio": "Nuevo Colegio",
+            "estado_chat": {
+                "estado_conversacion": {
+                    "fase": "confirmacion_cita",
+                    "step": "seleccion_horario",
+                    "datos_recolectados": {
+                        "servicio": "orientacion_vocacional",
+                        "fecha_preferida": "2025-07-20"
+                    },
+                    "contexto": "agendamiento_en_proceso"
+                }
+            }
+        }
+        """
+        logger.info("=== INICIO - Actualizando cliente completo ===")
+        
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        data = request.data
+        
+        logger.info(f"Actualizando cliente ID: {instance.id}")
+        logger.info(f"Datos recibidos: {data}")
+        
+        try:
+            from django.db import transaction
+            
+            with transaction.atomic():
+                # 1. Actualizar Usuario si se proporciona
+                usuario_data = data.get('usuario')
+                if usuario_data:
+                    usuario_serializer = UsuarioSerializer(
+                        instance.usuario, 
+                        data=usuario_data, 
+                        partial=True
+                    )
+                    if not usuario_serializer.is_valid():
+                        logger.error(f"Error validando usuario: {usuario_serializer.errors}")
+                        return Response({'error': 'Datos de usuario inválidos', 'detalles': usuario_serializer.errors}, 
+                                      status=status.HTTP_400_BAD_REQUEST)
+                    
+                    usuario_serializer.save()
+                    logger.info(f"Usuario actualizado - ID: {instance.usuario.id}")
+                
+                # 2. Actualizar EstadoChat si se proporciona
+                estado_chat_data = data.get('estado_chat')
+                if estado_chat_data:
+                    if instance.estado_chat:
+                        # Actualizar estado chat existente
+                        estado_chat_serializer = EstadoChatSerializer(
+                            instance.estado_chat, 
+                            data=estado_chat_data, 
+                            partial=True
+                        )
+                        if not estado_chat_serializer.is_valid():
+                            logger.error(f"Error validando estado chat: {estado_chat_serializer.errors}")
+                            return Response({'error': 'Datos de estado chat inválidos', 'detalles': estado_chat_serializer.errors}, 
+                                          status=status.HTTP_400_BAD_REQUEST)
+                        
+                        estado_chat_serializer.save()
+                        logger.info(f"EstadoChat actualizado - ID: {instance.estado_chat.id}")
+                    else:
+                        # Crear nuevo estado chat si no existe
+                        estado_chat_serializer = EstadoChatSerializer(data=estado_chat_data)
+                        if not estado_chat_serializer.is_valid():
+                            logger.error(f"Error validando nuevo estado chat: {estado_chat_serializer.errors}")
+                            return Response({'error': 'Datos de estado chat inválidos', 'detalles': estado_chat_serializer.errors}, 
+                                          status=status.HTTP_400_BAD_REQUEST)
+                        
+                        nuevo_estado_chat = estado_chat_serializer.save()
+                        instance.estado_chat = nuevo_estado_chat
+                        logger.info(f"Nuevo EstadoChat creado - ID: {nuevo_estado_chat.id}")
+                
+                # 3. Actualizar Cliente
+                cliente_data = {
+                    key: value for key, value in data.items() 
+                    if key not in ['usuario', 'estado_chat']
+                }
+                
+                if cliente_data:
+                    cliente_serializer = ClienteSerializer(
+                        instance, 
+                        data=cliente_data, 
+                        partial=True
+                    )
+                    if not cliente_serializer.is_valid():
+                        logger.error(f"Error validando cliente: {cliente_serializer.errors}")
+                        return Response({'error': 'Datos de cliente inválidos', 'detalles': cliente_serializer.errors}, 
+                                      status=status.HTTP_400_BAD_REQUEST)
+                    
+                    cliente_serializer.save()
+                    logger.info(f"Cliente actualizado - ID: {instance.id}")
+                
+                # 4. Retornar cliente actualizado completo
+                cliente_actualizado = Cliente.objects.select_related('usuario', 'estado_chat').get(id=instance.id)
+                response_serializer = ClienteSerializer(cliente_actualizado)
+                
+                logger.info("=== FIN - Cliente completo actualizado exitosamente ===")
+                return Response(response_serializer.data)
+                
+        except Exception as e:
+            logger.error(f"Error actualizando cliente completo: {str(e)}")
+            return Response({'error': 'Error interno del servidor', 'detalles': str(e)}, 
+                          status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @extend_schema(
         description="Obtener citas de un cliente",
         responses={200: CitaListSerializer(many=True)}
