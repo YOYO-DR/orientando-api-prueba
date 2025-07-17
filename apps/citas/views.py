@@ -311,7 +311,15 @@ class CitaViewSet(viewsets.ModelViewSet):
     )
     @action(detail=False, methods=['get'])
     def por_fecha(self, request):
-        """Filtrar citas por rango de fechas"""
+        """
+        Filtrar citas por rango de fechas
+        
+        Parámetros:
+        - fecha_inicio: Fecha de inicio del rango (YYYY-MM-DD o YYYY-MM-DDTHH:MM:SS)
+        - fecha_fin: Fecha de fin del rango (YYYY-MM-DD o YYYY-MM-DDTHH:MM:SS)
+        
+        Ambos parámetros filtran por la fecha de inicio de la cita.
+        """
         fecha_inicio = request.query_params.get('fecha_inicio', None)
         fecha_fin = request.query_params.get('fecha_fin', None)
         
@@ -320,7 +328,8 @@ class CitaViewSet(viewsets.ModelViewSet):
         if fecha_inicio:
             queryset = queryset.filter(fecha_hora_inicio__gte=fecha_inicio)
         if fecha_fin:
-            queryset = queryset.filter(fecha_hora_fin__lte=fecha_fin)
+            # Comparar con fecha_hora_inicio, no con fecha_hora_fin
+            queryset = queryset.filter(fecha_hora_inicio__lte=fecha_fin)
             
         serializer = CitaListSerializer(queryset, many=True)
         return Response(serializer.data)
