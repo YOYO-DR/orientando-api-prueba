@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Configuración para producción
 # Usar con: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
 
@@ -25,13 +23,13 @@ services:
   web:
     # Configuración de producción
     environment:
-      - DEBUG=False
+      - DEBUG=${DEBUG:-False}
       - DJANGO_SETTINGS_MODULE=config.settings
-      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
-      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost}
+      - SECRET_KEY=${DJANGO_SECRET_KEY:-django-insecure-6*+xxjrz7@1wn1^vz5=!rb=w5m2$e*sc4i52x3_sbb=_@-_x*4}
+      - ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost}
       - DB_NAME=${DB_NAME:-orientando_db}
       - DB_USER=${DB_USER:-orientando_user}
-      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PASSWORD=${DB_PASSWORD:-orientando_pass123}
       - DB_HOST=db
       - DB_PORT=5432
     # Usar Gunicorn para producción
@@ -52,7 +50,7 @@ services:
     environment:
       - POSTGRES_DB=${DB_NAME:-orientando_db}
       - POSTGRES_USER=${DB_USER:-orientando_user}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-orientando_pass123}
       - POSTGRES_HOST_AUTH_METHOD=md5
     # No exponer puerto en producción
     ports: []
@@ -60,6 +58,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
       # Configuración de PostgreSQL optimizada para producción
       - ./postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    networks:
+      - orientando_network
 
   # Remover adminer en producción
   adminer:
@@ -73,3 +73,7 @@ volumes:
     driver: local
   media_volume:
     driver: local
+
+networks:
+  orientando_network:
+    driver: bridge

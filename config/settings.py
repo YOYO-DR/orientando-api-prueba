@@ -47,12 +47,14 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_spectacular',
     'django_filters',
+    'corsheaders',
     
     # Local apps
     'apps.citas'
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -171,3 +173,61 @@ SPECTACULAR_SETTINGS = {
     },
     'COMPONENT_SPLIT_REQUEST': True,
 }
+
+# CORS Configuration
+# Configuración para desarrollo y producción
+
+# Permitir CORS para desarrollo local
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOW_CREDENTIALS = True
+else:
+    # Para producción, especificar dominios específicos
+    CORS_ALLOWED_ORIGINS = [
+        "https://tu-dominio.com",
+        "https://www.tu-dominio.com",
+        "https://app.n8n.cloud",  # Para n8n cloud
+        "http://localhost:3000",   # React/Next.js desarrollo
+        "http://localhost:5173",   # Vite desarrollo
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ]
+    
+    # Permitir subdominios en producción si es necesario
+    # CORS_ALLOW_ALL_ORIGINS = True  # Descomenta si necesitas permitir todos los orígenes
+
+# Headers permitidos
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-api-key',  # Para nuestro sistema de API Key
+]
+
+# Métodos HTTP permitidos
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# Permitir cookies y credenciales
+CORS_ALLOW_CREDENTIALS = True
+
+# Headers expuestos al cliente
+CORS_EXPOSE_HEADERS = [
+    'content-type',
+    'x-api-key',
+]
+
+# Preflight request cache
+CORS_PREFLIGHT_MAX_AGE = 86400  # 24 horas
