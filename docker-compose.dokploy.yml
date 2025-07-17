@@ -27,8 +27,8 @@ services:
   web:
     build: .
     container_name: orientando_web
-    ports:
-      - "8000:8000"  # Exponer puerto para Dokploy
+    # ports:
+      # - "8000:8000"  # Exponer puerto para Dokploy
     volumes:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
