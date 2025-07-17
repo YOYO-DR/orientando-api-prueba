@@ -256,18 +256,35 @@ class ClienteViewSet(viewsets.ModelViewSet):
                 usuario = usuario_serializer.save()
                 logger.info(f"Usuario creado - ID: {usuario.id}, Nombre: {usuario.nombres} {usuario.apellidos}")
                 
-                # 2. Crear EstadoChat si se proporciona
+                # 2. Crear o actualizar EstadoChat si se proporciona
                 estado_chat = None
                 estado_chat_data = data.get('estado_chat')
                 if estado_chat_data:
-                    estado_chat_serializer = EstadoChatSerializer(data=estado_chat_data)
-                    if not estado_chat_serializer.is_valid():
-                        logger.error(f"Error validando estado chat: {estado_chat_serializer.errors}")
-                        return Response({'error': 'Datos de estado chat inválidos', 'detalles': estado_chat_serializer.errors}, 
+                    numero_whatsapp = estado_chat_data.get('numero_whatsapp')
+                    estado_conversacion = estado_chat_data.get('estado_conversacion')
+                    
+                    if not numero_whatsapp:
+                        return Response({'error': 'numero_whatsapp es requerido en estado_chat'}, 
                                       status=status.HTTP_400_BAD_REQUEST)
                     
-                    estado_chat = estado_chat_serializer.save()
-                    logger.info(f"EstadoChat creado - ID: {estado_chat.id}, WhatsApp: {estado_chat.numero_whatsapp}")
+                    # Verificar si ya existe un EstadoChat con ese número
+                    try:
+                        estado_chat = EstadoChat.objects.get(numero_whatsapp=numero_whatsapp)
+                        # Si existe, actualizar solo el estado_conversacion
+                        if estado_conversacion is not None:
+                            estado_chat.estado_conversacion = estado_conversacion
+                            estado_chat.save()
+                        logger.info(f"EstadoChat actualizado - ID: {estado_chat.id}, WhatsApp: {estado_chat.numero_whatsapp}")
+                    except EstadoChat.DoesNotExist:
+                        # Si no existe, crear uno nuevo
+                        estado_chat_serializer = EstadoChatSerializer(data=estado_chat_data)
+                        if not estado_chat_serializer.is_valid():
+                            logger.error(f"Error validando estado chat: {estado_chat_serializer.errors}")
+                            return Response({'error': 'Datos de estado chat inválidos', 'detalles': estado_chat_serializer.errors}, 
+                                          status=status.HTTP_400_BAD_REQUEST)
+                        
+                        estado_chat = estado_chat_serializer.save()
+                        logger.info(f"EstadoChat creado - ID: {estado_chat.id}, WhatsApp: {estado_chat.numero_whatsapp}")
                 
                 # 3. Crear Cliente
                 cliente_data = {

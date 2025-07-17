@@ -39,7 +39,7 @@ class Usuario(models.Model):
 
 
 class EstadoChat(models.Model):
-    numero_whatsapp = models.CharField(max_length=20)  # Removido unique=True - varios clientes pueden usar el mismo número
+    numero_whatsapp = models.CharField(max_length=20, unique=True)  # Ahora es único
     estado_conversacion = models.JSONField()
 
     def __str__(self):
