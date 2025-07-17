@@ -198,6 +198,39 @@ class ClienteViewSet(viewsets.ModelViewSet):
         serializer = CitaListSerializer(citas, many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        description="Buscar cliente por número de documento (cédula)",
+        responses={200: ClienteSerializer}
+    )
+    @action(detail=False, methods=['get'])
+    def por_documento(self, request):
+        """Buscar cliente por número de documento"""
+        logger.info("=== INICIO - Endpoint por_documento llamado ===")
+        
+        numero_documento = request.query_params.get('numero_documento', None)
+        logger.info(f"Parámetro recibido - numero_documento: {numero_documento}")
+        
+        if not numero_documento:
+            logger.warning("Error: Parámetro numero_documento es requerido pero no fue proporcionado")
+            return Response({'error': 'Parámetro numero_documento es requerido'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Buscar cliente por número de documento del usuario relacionado
+            cliente = Cliente.objects.select_related('usuario', 'estado_chat').get(
+                usuario__numero_documento=numero_documento
+            )
+            logger.info(f"Cliente encontrado - ID: {cliente.id}, Usuario: {cliente.usuario.nombres} {cliente.usuario.apellidos}")
+            
+            serializer = self.get_serializer(cliente)
+            logger.info("=== FIN - Cliente encontrado y retornado ===")
+            return Response(serializer.data)
+            
+        except Cliente.DoesNotExist:
+            logger.warning(f"Cliente no encontrado para numero_documento: {numero_documento}")
+            return Response({'error': 'Cliente no encontrado con ese número de documento'}, 
+                          status=status.HTTP_404_NOT_FOUND)
+
 
 @extend_schema_view(
     list=extend_schema(description="Listar todos los productos"),
