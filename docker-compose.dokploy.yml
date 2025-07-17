@@ -2,25 +2,6 @@
 # Este archivo resuelve los problemas de despliegue en Dokploy
 
 services:
-  # Base de datos PostgreSQL
-  db:
-    image: postgres:15-alpine
-    container_name: orientando_db
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    environment:
-      POSTGRES_DB: ${DB_NAME:-orientando_db}
-      POSTGRES_USER: ${DB_USER:-orientando_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-orientando_pass123}
-      POSTGRES_HOST_AUTH_METHOD: md5
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-orientando_user} -d ${DB_NAME:-orientando_db}"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
   # Aplicación Django
   web:
     build: .
@@ -38,8 +19,8 @@ services:
       DB_NAME: ${DB_NAME:-orientando_db}
       DB_USER: ${DB_USER:-orientando_user}
       DB_PASSWORD: ${DB_PASSWORD:-orientando_pass123}
-      DB_HOST: db
-      DB_PORT: 5432
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
     command: >
       sh -c "mkdir -p /app/staticfiles /app/media &&
              ./wait-for-postgres.sh db 5432 &&
