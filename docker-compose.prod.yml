@@ -1,0 +1,75 @@
+version: '3.8'
+
+# Configuración para producción
+# Usar con: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+
+services:
+  # Nginx como proxy reverso
+  nginx:
+    image: nginx:alpine
+    container_name: orientando_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - static_volume:/var/www/static:ro
+      - media_volume:/var/www/media:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - web
+    networks:
+      - orientando_network
+    restart: unless-stopped
+
+  web:
+    # Configuración de producción
+    environment:
+      - DEBUG=False
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost}
+      - DB_NAME=${DB_NAME:-orientando_db}
+      - DB_USER=${DB_USER:-orientando_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=db
+      - DB_PORT=5432
+    # Usar Gunicorn para producción
+    command: >
+      sh -c "./wait-for-postgres.sh db 5432 &&
+             python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+    # No exponer puerto directamente (se accede a través de nginx)
+    ports: []
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+      # No montar código fuente en producción
+
+  db:
+    # Configuración de base de datos para producción
+    environment:
+      - POSTGRES_DB=${DB_NAME:-orientando_db}
+      - POSTGRES_USER=${DB_USER:-orientando_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_HOST_AUTH_METHOD=md5
+    # No exponer puerto en producción
+    ports: []
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Configuración de PostgreSQL optimizada para producción
+      - ./postgresql.conf:/etc/postgresql/postgresql.conf:ro
+
+  # Remover adminer en producción
+  adminer:
+    profiles:
+      - debug
+
+volumes:
+  postgres_data:
+    driver: local
+  static_volume:
+    driver: local
+  media_volume:
+    driver: local

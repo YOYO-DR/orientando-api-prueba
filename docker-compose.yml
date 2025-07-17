@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # Base de datos PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: orientando_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    environment:
+      POSTGRES_DB: orientando_db
+      POSTGRES_USER: orientando_user
+      POSTGRES_PASSWORD: orientando_pass123
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    networks:
+      - orientando_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orientando_user -d orientando_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Aplicación Django
+  web:
+    build: .
+    container_name: orientando_web
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.docker
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - orientando_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/admin/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Adminer para gestión de base de datos (opcional)
+  adminer:
+    image: adminer:latest
+    container_name: orientando_adminer
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    depends_on:
+      - db
+    networks:
+      - orientando_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  static_volume:
+    driver: local
+  media_volume:
+    driver: local
+
+networks:
+  orientando_network:
+    driver: bridge
