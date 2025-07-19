@@ -26,13 +26,20 @@ class EstadoCitaEnum(models.TextChoices):
 
 
 class Usuario(models.Model):
-    nombres = models.CharField(max_length=255)
-    apellidos = models.CharField(max_length=255)
-    tipo_documento = models.CharField(max_length=30, choices=TipoDocumentoEnum.choices)
+    nombres = models.CharField(max_length=255, db_index=True)
+    apellidos = models.CharField(max_length=255, db_index=True)
+    tipo_documento = models.CharField(max_length=30, choices=TipoDocumentoEnum.choices, db_index=True)
     numero_documento = models.CharField(max_length=100, unique=True)
     email = models.EmailField(max_length=255, unique=True, null=True, blank=True)
-    celular = models.CharField(max_length=20)
-    tipo = models.CharField(max_length=20, choices=TipoUsuarioEnum.choices)
+    celular = models.CharField(max_length=20, db_index=True)
+    tipo = models.CharField(max_length=20, choices=TipoUsuarioEnum.choices, db_index=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['nombres', 'apellidos'], name='usuario_nombre_completo_idx'),
+            models.Index(fields=['tipo', 'nombres'], name='usuario_tipo_nombre_idx'),
+            models.Index(fields=['tipo_documento', 'numero_documento'], name='usuario_documento_idx'),
+        ]
 
     def __str__(self):
         return f"{self.nombres} {self.apellidos} ({self.tipo})"
@@ -42,6 +49,11 @@ class EstadoChat(models.Model):
     numero_whatsapp = models.CharField(max_length=20, unique=True)  # Ahora es único
     estado_conversacion = models.JSONField()
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['numero_whatsapp'], name='estadochat_whatsapp_idx'),
+        ]
+
     def __str__(self):
         return self.numero_whatsapp
 
@@ -49,7 +61,13 @@ class EstadoChat(models.Model):
 class Profesional(models.Model):
     usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE)
     numero_whatsapp = models.CharField(max_length=20, unique=True)
-    cargo = models.CharField(max_length=150, null=True, blank=True)
+    cargo = models.CharField(max_length=150, null=True, blank=True, db_index=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['cargo'], name='profesional_cargo_idx'),
+            models.Index(fields=['numero_whatsapp'], name='profesional_whatsapp_idx'),
+        ]
 
     def __str__(self):
         return f"{self.usuario} - {self.cargo or 'Profesional'}"
@@ -57,57 +75,91 @@ class Profesional(models.Model):
 
 class Cliente(models.Model):
     usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE)
-    nombre_acudiente = models.CharField(max_length=255, null=True, blank=True)
-    edad = models.PositiveIntegerField(null=True, blank=True)
-    barrio = models.CharField(max_length=255, null=True, blank=True)
+    nombre_acudiente = models.CharField(max_length=255, null=True, blank=True, db_index=True)
+    edad = models.PositiveIntegerField(null=True, blank=True, db_index=True)
+    barrio = models.CharField(max_length=255, null=True, blank=True, db_index=True)
     direccion = models.CharField(max_length=255, null=True, blank=True)
-    remitido_colegio = models.BooleanField(default=False, null=True, blank=True)
-    colegio = models.CharField(max_length=255, null=True, blank=True)
+    remitido_colegio = models.BooleanField(default=False, null=True, blank=True, db_index=True)
+    colegio = models.CharField(max_length=255, null=True, blank=True, db_index=True)
     estado_chat = models.ForeignKey(EstadoChat, null=True, blank=True, on_delete=models.SET_NULL)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['remitido_colegio', 'colegio'], name='cliente_colegio_idx'),
+            models.Index(fields=['barrio'], name='cliente_barrio_idx'),
+            models.Index(fields=['edad'], name='cliente_edad_idx'),
+            models.Index(fields=['estado_chat'], name='cliente_estado_chat_idx'),
+        ]
 
     def __str__(self):
         return f"{self.usuario}"
 
 
 class Producto(models.Model):
-    nombre = models.CharField(max_length=255)
+    nombre = models.CharField(max_length=255, db_index=True)
     descripcion = models.TextField(null=True, blank=True)
-    es_agendable_por_bot = models.BooleanField(default=True)
-    duracion_minutos = models.PositiveIntegerField()
+    es_agendable_por_bot = models.BooleanField(default=True, db_index=True)
+    duracion_minutos = models.PositiveIntegerField(db_index=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['es_agendable_por_bot', 'nombre'], name='producto_agendable_nombre_idx'),
+            models.Index(fields=['duracion_minutos'], name='producto_duracion_idx'),
+        ]
 
     def __str__(self):
         return self.nombre
 
 
 class HistorialEstadoCita(models.Model):
-    estado_cita = models.CharField(max_length=100, choices=EstadoCitaEnum.choices)
-    fecha_registro = models.DateTimeField(auto_now_add=True)
+    estado_cita = models.CharField(max_length=100, choices=EstadoCitaEnum.choices, db_index=True)
+    fecha_registro = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['estado_cita', 'fecha_registro'], name='historial_estado_fecha_idx'),
+            models.Index(fields=['-fecha_registro'], name='historial_fecha_desc_idx'),
+        ]
 
     def __str__(self):
         return f"{self.estado_cita} - {self.fecha_registro}"
 
 
 class Cita(models.Model):
-    cliente = models.ForeignKey(Usuario, related_name='citas', on_delete=models.CASCADE)
-    producto = models.ForeignKey(Producto, on_delete=models.CASCADE)
-    profesional_asignado = models.ForeignKey(Usuario, null=True, blank=True, related_name='citas_asignadas', on_delete=models.SET_NULL)
-    fecha_hora_inicio = models.DateTimeField()
-    fecha_hora_fin = models.DateTimeField()
-    google_calendar_event_id = models.CharField(max_length=255, null=True, blank=True)
+    cliente = models.ForeignKey(Usuario, related_name='citas', on_delete=models.CASCADE, db_index=True)
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, db_index=True)
+    profesional_asignado = models.ForeignKey(Usuario, null=True, blank=True, related_name='citas_asignadas', on_delete=models.SET_NULL, db_index=True)
+    fecha_hora_inicio = models.DateTimeField(db_index=True)
+    fecha_hora_fin = models.DateTimeField(db_index=True)
+    google_calendar_event_id = models.CharField(max_length=255, null=True, blank=True, db_index=True)
     google_calendar_url_event = models.CharField(max_length=255, null=True, blank=True)
-    estado_actual = models.ForeignKey(HistorialEstadoCita, null=True, blank=True, on_delete=models.SET_NULL)
+    estado_actual = models.ForeignKey(HistorialEstadoCita, null=True, blank=True, on_delete=models.SET_NULL, db_index=True)
     observaciones = models.TextField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['fecha_hora_inicio', 'fecha_hora_fin'], name='cita_horario_idx'),
+            models.Index(fields=['cliente', 'fecha_hora_inicio'], name='cita_cliente_fecha_idx'),
+            models.Index(fields=['profesional_asignado', 'fecha_hora_inicio'], name='cita_profesional_fecha_idx'),
+            models.Index(fields=['producto', 'fecha_hora_inicio'], name='cita_producto_fecha_idx'),
+            models.Index(fields=['estado_actual', 'fecha_hora_inicio'], name='cita_estado_fecha_idx'),
+            models.Index(fields=['-fecha_hora_inicio'], name='cita_fecha_desc_idx'),
+            models.Index(fields=['google_calendar_event_id'], name='cita_calendar_event_idx'),
+        ]
 
     def __str__(self):
         return f"Cita de {self.cliente} el {self.fecha_hora_inicio}"
 
 
 class ProductoProfesional(models.Model):
-    producto = models.ForeignKey(Producto, on_delete=models.CASCADE)
-    profesional = models.ForeignKey(Profesional, on_delete=models.CASCADE)
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, db_index=True)
+    profesional = models.ForeignKey(Profesional, on_delete=models.CASCADE, db_index=True)
 
     class Meta:
         unique_together = ('producto', 'profesional')
+        indexes = [
+            models.Index(fields=['producto', 'profesional'], name='producto_profesional_idx'),
+        ]
 
     def __str__(self):
         return f"{self.producto} - {self.profesional}"
@@ -115,18 +167,24 @@ class ProductoProfesional(models.Model):
 
 class ApiKey(models.Model):
     """Modelo para gestionar API Keys para chatbots y servicios externos"""
-    name = models.CharField(max_length=100, help_text="Nombre descriptivo para la API Key")
+    name = models.CharField(max_length=100, help_text="Nombre descriptivo para la API Key", db_index=True)
     key = models.CharField(max_length=64, unique=True, editable=False)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    last_used = models.DateTimeField(null=True, blank=True)
-    usage_count = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    last_used = models.DateTimeField(null=True, blank=True, db_index=True)
+    usage_count = models.PositiveIntegerField(default=0, db_index=True)
     description = models.TextField(blank=True, help_text="Descripción del uso de esta API Key")
     
     class Meta:
         verbose_name = "API Key"
         verbose_name_plural = "API Keys"
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['is_active', 'name'], name='apikey_active_name_idx'),
+            models.Index(fields=['-created_at'], name='apikey_created_desc_idx'),
+            models.Index(fields=['-last_used'], name='apikey_last_used_desc_idx'),
+            models.Index(fields=['-usage_count'], name='apikey_usage_desc_idx'),
+        ]
     
     def save(self, *args, **kwargs):
         """Generar API Key automáticamente al crear"""

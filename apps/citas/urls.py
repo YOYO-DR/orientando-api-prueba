@@ -1,7 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    UsuarioViewSet,
     EstadoChatViewSet,
     ProfesionalViewSet,
     ClienteViewSet,
@@ -15,7 +14,6 @@ from .views import (
 router = DefaultRouter()
 
 # Registrar todos los ViewSets
-router.register(r'usuarios', UsuarioViewSet)
 router.register(r'estados-chat', EstadoChatViewSet)
 router.register(r'profesionales', ProfesionalViewSet)
 router.register(r'clientes', ClienteViewSet)
