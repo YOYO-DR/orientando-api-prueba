@@ -136,11 +136,12 @@ class ProductoSerializer(serializers.ModelSerializer):
 
 class HistorialEstadoCitaSerializer(serializers.ModelSerializer):
     """Serializador para el modelo HistorialEstadoCita"""
+    cita_id = serializers.IntegerField(write_only=True, required=False)
     
     class Meta:
         model = HistorialEstadoCita
-        fields = ['id', 'estado_cita', 'fecha_registro']
-        read_only_fields = ['fecha_registro']
+        fields = ['id', 'cita', 'cita_id', 'estado_cita', 'fecha_registro']
+        read_only_fields = ['fecha_registro', 'cita']
 
 
 class CitaSerializer(serializers.ModelSerializer):

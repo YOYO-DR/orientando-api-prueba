@@ -112,17 +112,19 @@ class Producto(models.Model):
 
 
 class HistorialEstadoCita(models.Model):
+    cita = models.ForeignKey('Cita', related_name='historial_estados', on_delete=models.CASCADE, db_index=True)
     estado_cita = models.CharField(max_length=100, choices=EstadoCitaEnum.choices, db_index=True)
     fecha_registro = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
         indexes = [
+            models.Index(fields=['cita', 'fecha_registro'], name='historial_cita_fecha_idx'),
             models.Index(fields=['estado_cita', 'fecha_registro'], name='historial_estado_fecha_idx'),
             models.Index(fields=['-fecha_registro'], name='historial_fecha_desc_idx'),
         ]
 
     def __str__(self):
-        return f"{self.estado_cita} - {self.fecha_registro}"
+        return f"Cita {self.cita.id} - {self.estado_cita} - {self.fecha_registro}"
 
 
 class Cita(models.Model):
@@ -133,7 +135,7 @@ class Cita(models.Model):
     fecha_hora_fin = models.DateTimeField(db_index=True)
     google_calendar_event_id = models.CharField(max_length=255, null=True, blank=True, db_index=True)
     google_calendar_url_event = models.CharField(max_length=255, null=True, blank=True)
-    estado_actual = models.ForeignKey(HistorialEstadoCita, null=True, blank=True, on_delete=models.SET_NULL, db_index=True)
+    estado_actual = models.ForeignKey(HistorialEstadoCita, null=True, blank=True, related_name='cita_con_este_estado', on_delete=models.SET_NULL, db_index=True)
     observaciones = models.TextField(null=True, blank=True)
 
     class Meta:
@@ -146,6 +148,68 @@ class Cita(models.Model):
             models.Index(fields=['-fecha_hora_inicio'], name='cita_fecha_desc_idx'),
             models.Index(fields=['google_calendar_event_id'], name='cita_calendar_event_idx'),
         ]
+
+    def save(self, *args, **kwargs):
+        """Override save para crear estado inicial en citas nuevas"""
+        is_new = self.pk is None
+        
+        # Guardar la cita primero
+        super().save(*args, **kwargs)
+        
+        # Si es una cita nueva y no tiene estado actual, crear el primer estado
+        if is_new and not self.estado_actual:
+            primer_estado = HistorialEstadoCita.objects.create(
+                cita=self,
+                estado_cita=EstadoCitaEnum.AGENDADO
+            )
+            # Actualizar la cita con el primer estado (sin triggerar save otra vez)
+            Cita.objects.filter(pk=self.pk).update(estado_actual=primer_estado)
+            self.estado_actual = primer_estado
+
+    def cambiar_estado(self, nuevo_estado, observaciones_adicionales=None):
+        """
+        Método para cambiar estado y registrar automáticamente en historial
+        
+        Args:
+            nuevo_estado: El nuevo estado de la cita (debe ser un valor válido de EstadoCitaEnum)
+            observaciones_adicionales: Observaciones opcionales para agregar
+            
+        Returns:
+            HistorialEstadoCita: El registro de historial creado
+        """
+        # Validar que el nuevo estado es válido
+        estados_validos = [choice[0] for choice in EstadoCitaEnum.choices]
+        if nuevo_estado not in estados_validos:
+            raise ValueError(f"Estado '{nuevo_estado}' no es válido. Estados válidos: {estados_validos}")
+        
+        # Crear registro en historial
+        historial = HistorialEstadoCita.objects.create(
+            cita=self,
+            estado_cita=nuevo_estado
+        )
+        
+        # Actualizar estado actual de la cita
+        self.estado_actual = historial
+        
+        # Agregar observaciones adicionales si se proporcionan
+        if observaciones_adicionales:
+            if self.observaciones:
+                self.observaciones += f"\n--- {historial.fecha_registro.strftime('%Y-%m-%d %H:%M')} ---\n{observaciones_adicionales}"
+            else:
+                self.observaciones = f"--- {historial.fecha_registro.strftime('%Y-%m-%d %H:%M')} ---\n{observaciones_adicionales}"
+        
+        # Guardar solo los campos necesarios para evitar recursión
+        self.save(update_fields=['estado_actual', 'observaciones'])
+        
+        return historial
+
+    def get_estado_actual_nombre(self):
+        """Obtener el nombre del estado actual"""
+        return self.estado_actual.estado_cita if self.estado_actual else "Sin estado"
+
+    def get_historial_completo(self):
+        """Obtener todo el historial de estados ordenado por fecha"""
+        return self.historial_estados.all().order_by('fecha_registro')
 
     def __str__(self):
         return f"Cita de {self.cliente} el {self.fecha_hora_inicio}"

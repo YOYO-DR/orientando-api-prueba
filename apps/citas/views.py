@@ -1013,20 +1013,94 @@ class CitaViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['post'])
     def cambiar_estado(self, request, pk=None):
-        """Cambiar el estado de una cita"""
+        """
+        Cambiar el estado de una cita y registrar automáticamente en historial
+        
+        Estructura del JSON esperado:
+        {
+            "estado_cita": "PRIMER_CONFIRMADO",
+            "observaciones": "Cliente confirmó por WhatsApp"  // opcional
+        }
+        """
+        logger.info("=== INICIO - Cambio de estado de cita ===")
+        
         cita = self.get_object()
+        nuevo_estado = request.data.get('estado_cita')
+        observaciones = request.data.get('observaciones')
         
-        # Crear nuevo estado
-        estado_serializer = HistorialEstadoCitaSerializer(data=request.data)
-        if estado_serializer.is_valid():
-            nuevo_estado = estado_serializer.save()
-            cita.estado_actual = nuevo_estado
-            cita.save()
+        logger.info(f"Cita ID: {cita.id}")
+        logger.info(f"Estado actual: {cita.get_estado_actual_nombre()}")
+        logger.info(f"Nuevo estado solicitado: {nuevo_estado}")
+        logger.info(f"Observaciones: {observaciones}")
+        
+        if not nuevo_estado:
+            return Response({
+                'error': 'El campo estado_cita es requerido'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Usar el método del modelo para cambiar estado
+            historial_creado = cita.cambiar_estado(
+                nuevo_estado=nuevo_estado,
+                observaciones_adicionales=observaciones
+            )
             
+            logger.info(f"Estado cambiado exitosamente a: {nuevo_estado}")
+            logger.info(f"Historial creado - ID: {historial_creado.id}")
+            
+            # Retornar la cita actualizada
             serializer = self.get_serializer(cita)
-            return Response(serializer.data)
+            
+            response_data = {
+                'message': 'Estado de cita actualizado exitosamente',
+                'estado_anterior': historial_creado.cita.historial_estados.exclude(
+                    id=historial_creado.id
+                ).last().estado_cita if historial_creado.cita.historial_estados.count() > 1 else None,
+                'estado_actual': nuevo_estado,
+                'fecha_cambio': historial_creado.fecha_registro,
+                'cita': serializer.data
+            }
+            
+            logger.info("=== FIN - Estado de cita actualizado exitosamente ===")
+            return Response(response_data)
+            
+        except ValueError as e:
+            logger.error(f"Error de validación: {str(e)}")
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Error cambiando estado de cita: {str(e)}")
+            return Response({
+                'error': 'Error interno del servidor',
+                'detalles': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @extend_schema(
+        description="Obtener historial de estados de una cita",
+        responses={200: HistorialEstadoCitaSerializer(many=True)}
+    )
+    @action(detail=True, methods=['get'])
+    def historial_estados(self, request, pk=None):
+        """Obtener todo el historial de estados de una cita específica"""
+        logger.info("=== INICIO - Consulta historial de estados de cita ===")
         
-        return Response(estado_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        cita = self.get_object()
+        logger.info(f"Cita ID: {cita.id}")
+        
+        # Obtener historial completo ordenado por fecha
+        historial = cita.get_historial_completo()
+        serializer = HistorialEstadoCitaSerializer(historial, many=True)
+        
+        logger.info(f"Historial encontrado: {len(serializer.data)} registros")
+        logger.info("=== FIN - Historial de estados consultado ===")
+        
+        return Response({
+            'cita_id': cita.id,
+            'estado_actual': cita.get_estado_actual_nombre(),
+            'total_cambios': len(serializer.data),
+            'historial': serializer.data
+        })
 
 
 @extend_schema_view(
