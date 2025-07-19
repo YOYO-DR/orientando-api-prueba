@@ -7,8 +7,7 @@ from .views import (
     ProductoViewSet,
     HistorialEstadoCitaViewSet,
     CitaViewSet,
-    ProductoProfesionalViewSet,
-    ApiKeyViewSet
+    ProductoProfesionalViewSet
 )
 
 router = DefaultRouter()
@@ -21,7 +20,6 @@ router.register(r'productos', ProductoViewSet)
 router.register(r'historial-estados', HistorialEstadoCitaViewSet)
 router.register(r'citas', CitaViewSet)
 router.register(r'producto-profesional', ProductoProfesionalViewSet)
-router.register(r'api-keys', ApiKeyViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

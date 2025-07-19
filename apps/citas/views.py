@@ -70,6 +70,96 @@ class EstadoChatViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Estado de chat no encontrado'}, 
                           status=status.HTTP_404_NOT_FOUND)
 
+    @extend_schema(
+        description="Actualizar estado de chat por número de WhatsApp (enviado en JSON)",
+        request=EstadoChatSerializer,
+        responses={200: EstadoChatSerializer}
+    )
+    @action(detail=False, methods=['put', 'patch'], url_path='actualizar-por-numero')
+    def actualizar_por_numero(self, request):
+        """
+        Actualizar estado de chat utilizando el número de WhatsApp enviado en el JSON
+        
+        Este endpoint permite al bot actualizar un estado de chat usando el número de WhatsApp
+        enviado en el cuerpo de la petición, no en la URL.
+        
+        URL FIJA: /api/estados-chat/actualizar-por-numero/
+        
+        Estructura esperada del JSON:
+        {
+            "numero_whatsapp": "573001234567",
+            "estado_conversacion": {
+                "fase": "confirmacion_cita",
+                "step": "seleccion_horario"
+            }
+        }
+        """
+        logger.info("=== INICIO - Actualizando estado de chat por número de WhatsApp (desde JSON) ===")
+        
+        data = request.data
+        numero_whatsapp = data.get('numero_whatsapp')
+        
+        logger.info(f"Datos recibidos: {data}")
+        logger.info(f"Número WhatsApp extraído del JSON: {numero_whatsapp}")
+        
+        if not numero_whatsapp:
+            return Response({
+                'error': 'numero_whatsapp es requerido en el JSON'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Buscar el estado de chat por número de WhatsApp
+            estado_chat = EstadoChat.objects.get(numero_whatsapp=numero_whatsapp)
+            logger.info(f"EstadoChat encontrado - ID: {estado_chat.id}, WhatsApp: {estado_chat.numero_whatsapp}")
+            
+            # Actualizar el estado de chat (excluir numero_whatsapp de los datos a procesar ya que es el identificador)
+            datos_actualizacion = {key: value for key, value in data.items() if key != 'numero_whatsapp'}
+            
+            logger.info(f"Datos para actualización: {datos_actualizacion}")
+            
+            if not datos_actualizacion:
+                return Response({
+                    'error': 'No hay datos para actualizar'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            estado_chat_serializer = EstadoChatSerializer(
+                estado_chat, 
+                data=datos_actualizacion, 
+                partial=True
+            )
+            
+            if not estado_chat_serializer.is_valid():
+                logger.error(f"Error validando estado chat: {estado_chat_serializer.errors}")
+                return Response({
+                    'error': 'Datos de estado chat inválidos', 
+                    'detalles': estado_chat_serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            estado_chat_serializer.save()
+            logger.info(f"EstadoChat actualizado exitosamente - ID: {estado_chat.id}")
+            
+            # Retornar el estado de chat actualizado
+            estado_chat_actualizado = EstadoChat.objects.get(id=estado_chat.id)
+            response_serializer = EstadoChatSerializer(estado_chat_actualizado)
+            
+            logger.info("=== FIN - Estado de chat actualizado exitosamente por número de WhatsApp ===")
+            return Response({
+                'message': 'Estado de chat actualizado exitosamente',
+                'data': response_serializer.data
+            })
+            
+        except EstadoChat.DoesNotExist:
+            logger.error(f"Estado de chat no encontrado para número: {numero_whatsapp}")
+            return Response({
+                'error': 'Estado de chat no encontrado con ese número de WhatsApp'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error actualizando estado de chat por número: {str(e)}")
+            return Response({
+                'error': 'Error interno del servidor', 
+                'detalles': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @extend_schema_view(
     list=extend_schema(description="Listar todos los profesionales"),
@@ -993,93 +1083,3 @@ class ProductoProfesionalViewSet(viewsets.ModelViewSet):
         relaciones = self.get_queryset().filter(profesional_id=profesional_id)
         serializer = self.get_serializer(relaciones, many=True)
         return Response(serializer.data)
-
-
-@extend_schema_view(
-    list=extend_schema(description="Listar todas las API Keys"),
-    create=extend_schema(description="Crear una nueva API Key"),
-    retrieve=extend_schema(description="Obtener una API Key específica"),
-    update=extend_schema(description="Actualizar una API Key"),
-    partial_update=extend_schema(description="Actualizar parcialmente una API Key"),
-    destroy=extend_schema(description="Eliminar una API Key")
-)
-class ApiKeyViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gestionar API Keys.
-    
-    Permite crear, listar y gestionar API Keys para chatbots
-    y servicios externos.
-    """
-    queryset = ApiKey.objects.all()
-    permission_classes = [IsAuthenticated]  # Solo usuarios autenticados pueden gestionar API Keys
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['is_active']
-    search_fields = ['name', 'description']
-    ordering_fields = ['name', 'created_at', 'last_used', 'usage_count']
-    ordering = ['-created_at']
-
-    def get_serializer_class(self):
-        """Usar diferentes serializadores según la acción"""
-        if self.action == 'create':
-            return ApiKeyCreateSerializer
-        elif self.action == 'list':
-            return ApiKeyListSerializer
-        return ApiKeySerializer
-
-    @extend_schema(
-        description="Regenerar una API Key existente",
-        responses={200: ApiKeyCreateSerializer}
-    )
-    @action(detail=True, methods=['post'])
-    def regenerate(self, request, pk=None):
-        """Regenerar la key de una API Key existente"""
-        api_key = self.get_object()
-        
-        # Generar nueva key
-        api_key.key = ApiKey.generate_api_key()
-        api_key.usage_count = 0
-        api_key.last_used = None
-        api_key.save()
-        
-        serializer = ApiKeyCreateSerializer(api_key)
-        return Response(serializer.data)
-
-    @extend_schema(
-        description="Activar/desactivar una API Key",
-        responses={200: ApiKeySerializer}
-    )
-    @action(detail=True, methods=['post'])
-    def toggle_active(self, request, pk=None):
-        """Activar o desactivar una API Key"""
-        api_key = self.get_object()
-        api_key.is_active = not api_key.is_active
-        api_key.save()
-        
-        serializer = self.get_serializer(api_key)
-        return Response(serializer.data)
-
-    @extend_schema(description="Obtener estadísticas de uso de API Keys")
-    @action(detail=False, methods=['get'])
-    def stats(self, request):
-        """Obtener estadísticas de uso de las API Keys"""
-        from django.db.models import Sum
-        
-        total_keys = ApiKey.objects.count()
-        active_keys = ApiKey.objects.filter(is_active=True).count()
-        total_usage = ApiKey.objects.aggregate(Sum('usage_count'))['usage_count__sum'] or 0
-        
-        most_used = ApiKey.objects.filter(usage_count__gt=0).order_by('-usage_count').first()
-        most_used_data = None
-        if most_used:
-            most_used_data = {
-                'name': most_used.name,
-                'usage_count': most_used.usage_count,
-                'last_used': most_used.last_used
-            }
-        
-        return Response({
-            'total_keys': total_keys,
-            'active_keys': active_keys,
-            'total_usage': total_usage,
-            'most_used': most_used_data
-        })
