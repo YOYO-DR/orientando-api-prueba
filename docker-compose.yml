@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Base de datos PostgreSQL
   db:
@@ -15,8 +13,6 @@ services:
       POSTGRES_HOST_AUTH_METHOD: trust
     ports:
       - "5432:5432"
-    networks:
-      - orientando_network
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U orientando_user -d orientando_db"]
@@ -41,8 +37,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    networks:
-      - orientando_network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/admin/"]
@@ -60,8 +54,6 @@ services:
       ADMINER_DEFAULT_SERVER: db
     depends_on:
       - db
-    networks:
-      - orientando_network
     restart: unless-stopped
 
 volumes:
@@ -71,7 +63,3 @@ volumes:
     driver: local
   media_volume:
     driver: local
-
-networks:
-  orientando_network:
-    driver: bridge
