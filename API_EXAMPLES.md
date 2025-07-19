@@ -12,7 +12,178 @@ Todos los ejemplos usan autenticación por API Key. Asegúrate de:
 ```javascript
 // Configuración base
 const API_BASE_URL = 'https://tu-api.com/api';
-const API_KEY = 'tu-api-key-aqui';
+const API_KEY = 'tu-api-ke- `DELETE /api/citas/{id}/` - Eliminar cita
+- `GET /api/usuarios/` - Listar usuarios
+- `GET /api/clientes/` - Listar clientes
+- `GET /api/profesionales/` - Listar profesionales
+- `GET /api/productos/` - Listar productos
+- `GET /api/api-keys/` - Gestionar API Keys (requiere autenticación admin)
+
+## 🔒 Validaciones de Citas
+
+### **Validaciones Implementadas**
+
+Al crear una cita, el sistema valida automáticamente:
+
+#### 1. **Validación de Cliente**
+- ✅ El `cliente_id` debe corresponder a un Usuario existente
+- ✅ El Usuario debe ser de tipo `CLIENTE`
+- ✅ Debe existir un perfil de Cliente asociado al Usuario
+
+```json
+// ❌ Error si el usuario no es Cliente
+{
+  "cliente_id": ["El usuario debe ser de tipo CLIENTE. Tipo actual: PROFESIONAL"]
+}
+
+// ❌ Error si no tiene perfil Cliente
+{
+  "cliente_id": ["El usuario no tiene un perfil de Cliente asociado"]
+}
+```
+
+#### 2. **Validación de Profesional**
+- ✅ El `profesional_asignado_id` debe corresponder a un Usuario existente
+- ✅ El Usuario debe ser de tipo `PROFESIONAL`
+- ✅ Debe existir un perfil de Profesional asociado al Usuario
+
+```json
+// ❌ Error si el usuario no es Profesional
+{
+  "profesional_asignado_id": ["El usuario debe ser de tipo PROFESIONAL. Tipo actual: CLIENTE"]
+}
+
+// ❌ Error si no tiene perfil Profesional
+{
+  "profesional_asignado_id": ["El usuario no tiene un perfil de Profesional asociado"]
+}
+```
+
+#### 3. **Validación de Producto**
+- ✅ El `producto_id` debe corresponder a un Producto existente
+
+```json
+// ❌ Error si el producto no existe
+{
+  "producto_id": ["El producto especificado no existe"]
+}
+```
+
+#### 4. **Validación de Relación Producto-Profesional**
+- ✅ El profesional debe estar autorizado para atender el producto
+- ✅ Debe existir una relación en la tabla `ProductoProfesional`
+- ✅ Se valida después de confirmar que tanto el producto como el profesional existen
+
+```json
+// ❌ Error si el profesional no puede atender el producto
+{
+  "profesional_asignado_id": ["El profesional Juan Pérez no está autorizado para atender el producto \"Consulta Psicológica\""]
+}
+```
+
+#### 5. **Validación de Fechas**
+- ✅ La fecha de fin debe ser posterior a la fecha de inicio
+
+```json
+// ❌ Error si las fechas son incorrectas
+{
+  "fecha_hora_fin": ["La fecha de fin debe ser posterior a la fecha de inicio"]
+}
+```
+
+### **Ejemplo de Creación Exitosa**
+
+```javascript
+// ✅ Creación exitosa con todas las validaciones
+const response = await fetch('/api/citas/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-API-Key': 'tu-api-key'
+  },
+  body: JSON.stringify({
+    cliente_id: 15,      // Usuario tipo CLIENTE con perfil Cliente
+    profesional_asignado_id: 8, // Usuario tipo PROFESIONAL con perfil Profesional
+    producto_id: 3,      // Producto que el profesional puede atender
+    fecha_hora_inicio: '20/07/2025 14:00',  // Formato: dd/mm/aaaa hh:mm
+    fecha_hora_fin: '20/07/2025 15:00',     // Formato: dd/mm/aaaa hh:mm
+    observaciones: 'Primera consulta'
+  })
+});
+```
+
+### **📅 Formato de Fechas**
+
+**Entrada (Request):** `dd/mm/aaaa hh:mm` en formato 24 horas
+```json
+{
+  "fecha_hora_inicio": "20/07/2025 14:30",
+  "fecha_hora_fin": "20/07/2025 15:30"
+}
+```
+
+**Salida (Response):** Mismo formato `dd/mm/aaaa hh:mm`
+```json
+{
+  "id": 123,
+  "fecha_hora_inicio": "20/07/2025 14:30",
+  "fecha_hora_fin": "20/07/2025 15:30",
+  "cliente": { ... },
+  "producto": { ... }
+}
+```
+
+**Errores de formato:**
+```json
+// ❌ Error si el formato es incorrecto
+{
+  "fecha_hora_inicio": ["El formato de fecha debe ser dd/mm/aaaa hh:mm (ejemplo: 20/07/2025 14:30)"]
+}
+```
+
+### **Logs de Validación**
+
+El sistema registra automáticamente todas las validaciones:
+
+```
+INFO - === VALIDACIÓN CLIENTE_ID - ID: 15 ===
+INFO - Usuario encontrado - ID: 15, Tipo: CLIENTE
+INFO - Validación cliente_id exitosa - Cliente ID: 8
+
+INFO - === VALIDACIÓN PROFESIONAL_ID - ID: 8 ===
+INFO - Usuario encontrado - ID: 8, Tipo: PROFESIONAL
+INFO - Validación profesional_id exitosa - Profesional ID: 5
+
+INFO - === VALIDACIÓN PRODUCTO_ID - ID: 3 ===
+INFO - Producto encontrado - ID: 3, Nombre: Consulta Psicológica
+
+INFO - === VALIDACIONES CRUZADAS CITA ===
+INFO - Validando relación Profesional-Producto - Profesional ID: 8, Producto ID: 3
+INFO - Verificación exitosa - Profesional: Juan Pérez, Producto: Consulta Psicológica
+INFO - Relación Profesional-Producto validada exitosamente
+INFO - === VALIDACIONES CRUZADAS COMPLETADAS ===
+```
+
+### **Configurar Relaciones Producto-Profesional**
+
+Para que un profesional pueda atender un producto, debe existir la relación:
+
+```javascript
+// Crear relación Producto-Profesional
+await fetch('/api/productos-profesionales/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-API-Key': 'tu-api-key'
+  },
+  body: JSON.stringify({
+    producto_id: 3,      // ID del producto/servicio
+    profesional_id: 5    // ID del registro Profesional (no Usuario)
+  })
+});
+```
+
+¡Tu API está lista para ser consumida desde cualquier plataforma! 🚀
 
 // Función helper para peticiones
 async function apiRequest(endpoint, options = {}) {
@@ -43,8 +214,9 @@ const nuevaCita = await apiRequest('/citas/', {
     body: JSON.stringify({
         cliente_id: 1,
         producto_id: 1,
-        fecha_hora_inicio: '2025-07-20T10:00:00Z',
-        fecha_hora_fin: '2025-07-20T11:00:00Z'
+        profesional_asignado_id: 2,
+        fecha_hora_inicio: '20/07/2025 14:00',
+        fecha_hora_fin: '20/07/2025 15:00'
     })
 });
 
@@ -197,9 +369,10 @@ function CitasList() {
         "headers": {
           "X-API-Key": "tu-api-key-aqui"
         },
-        "body": {
+        body: {
           "cliente_id": "{{ $('Crear Usuario').first().json.id }}",
           "producto_id": "{{ $webhook.body.producto_id }}",
+          "profesional_asignado_id": "{{ $webhook.body.profesional_id }}",
           "fecha_hora_inicio": "{{ $webhook.body.fecha_hora_inicio }}",
           "fecha_hora_fin": "{{ $webhook.body.fecha_hora_fin }}",
           "observaciones": "Cita creada desde n8n"

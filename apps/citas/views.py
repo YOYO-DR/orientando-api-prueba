@@ -859,16 +859,153 @@ class ProductoViewSet(viewsets.ModelViewSet):
             return ProductoListSerializer
         return ProductoSerializer
 
+    def list(self, request, *args, **kwargs):
+        """Listar productos con profesionales incluidos"""
+        logger.info("=== INICIO - Listando productos con profesionales ===")
+        
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # Optimizar consulta para incluir profesionales
+        queryset = queryset.prefetch_related('productoprofesional_set__profesional__usuario')
+        
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            logger.info(f"Productos paginados con profesionales - Items: {len(page)}")
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        logger.info(f"=== FIN - {len(serializer.data)} productos listados con profesionales ===")
+        return Response(serializer.data)
+
     @extend_schema(
-        description="Obtener productos agendables por bot",
+        description="Obtener producto por ID (enviado en JSON)",
+        request=ProductoSerializer,
+        responses={200: ProductoSerializer}
+    )
+    @action(detail=False, methods=['post'], url_path='obtener-por-id')
+    def obtener_por_id(self, request):
+        """
+        Obtener producto específico usando ID enviado en el JSON
+        
+        Este endpoint permite al bot obtener un producto usando el ID
+        enviado en el cuerpo de la petición, no en la URL.
+        
+        URL FIJA: /api/productos/obtener-por-id/
+        
+        Estructura esperada del JSON:
+        {
+            "producto_id": 45
+        }
+        """
+        logger.info("=== INICIO - Obteniendo producto por ID (desde JSON) ===")
+        
+        data = request.data
+        producto_id = data.get('producto_id')
+        
+        logger.info(f"Datos recibidos: {data}")
+        logger.info(f"Producto ID extraído del JSON: {producto_id}")
+        
+        if not producto_id:
+            return Response({
+                'error': 'producto_id es requerido en el JSON'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Buscar el producto con profesionales incluidos
+            producto = Producto.objects.prefetch_related(
+                'productoprofesional_set__profesional__usuario'
+            ).get(id=producto_id)
+            
+            logger.info(f"Producto encontrado - ID: {producto.id}, Nombre: {producto.nombre}")
+            
+            serializer = ProductoSerializer(producto)
+            
+            logger.info("=== FIN - Producto encontrado y retornado con profesionales ===")
+            return Response(serializer.data)
+            
+        except Producto.DoesNotExist:
+            logger.error(f"Producto no encontrado con ID: {producto_id}")
+            return Response({
+                'error': 'Producto no encontrado'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error obteniendo producto por ID: {str(e)}")
+            return Response({
+                'error': 'Error interno del servidor',
+                'detalles': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @extend_schema(
+        description="Buscar productos por nombre o descripción con profesionales",
+        responses={200: ProductoListSerializer(many=True)}
+    )
+    @action(detail=False, methods=['get'])
+    def buscar(self, request):
+        """
+        Buscar productos por nombre o descripción e incluir profesionales
+        
+        Parámetros:
+        - q: Término de búsqueda (busca en nombre y descripción)
+        - agendable_bot: true/false para filtrar solo productos agendables por bot
+        """
+        logger.info("=== INICIO - Búsqueda de productos con profesionales ===")
+        
+        query = request.query_params.get('q', '')
+        agendable_bot = request.query_params.get('agendable_bot', '')
+        
+        logger.info(f"Parámetros - q: '{query}', agendable_bot: '{agendable_bot}'")
+        
+        if not query.strip():
+            return Response({
+                'error': 'Parámetro q (término de búsqueda) es requerido'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Construir filtros
+        from django.db.models import Q
+        filtros = Q(nombre__icontains=query) | Q(descripcion__icontains=query)
+        
+        if agendable_bot.lower() == 'true':
+            filtros = filtros & Q(es_agendable_por_bot=True)
+        elif agendable_bot.lower() == 'false':
+            filtros = filtros & Q(es_agendable_por_bot=False)
+        
+        # Ejecutar búsqueda con profesionales incluidos
+        productos = Producto.objects.filter(filtros).prefetch_related(
+            'productoprofesional_set__profesional__usuario'
+        ).order_by('nombre')
+        
+        logger.info(f"Productos encontrados: {productos.count()}")
+        
+        serializer = ProductoListSerializer(productos, many=True)
+        
+        logger.info("=== FIN - Búsqueda de productos completada con profesionales ===")
+        return Response({
+            'query': query,
+            'total_encontrados': len(serializer.data),
+            'productos': serializer.data
+        })
+
+    @extend_schema(
+        description="Obtener productos agendables por bot con profesionales",
         responses={200: ProductoListSerializer(many=True)}
     )
     @action(detail=False, methods=['get'])
     def agendables_bot(self, request):
-        """Obtener solo productos agendables por bot"""
-        productos = self.queryset.filter(es_agendable_por_bot=True)
+        """Obtener solo productos agendables por bot con profesionales incluidos"""
+        logger.info("=== INICIO - Obteniendo productos agendables por bot ===")
+        
+        productos = self.queryset.filter(es_agendable_por_bot=True).prefetch_related(
+            'productoprofesional_set__profesional__usuario'
+        ).order_by('nombre')
+        
         serializer = ProductoListSerializer(productos, many=True)
-        return Response(serializer.data)
+        
+        logger.info(f"=== FIN - {len(serializer.data)} productos agendables por bot encontrados ===")
+        return Response({
+            'total_agendables': len(serializer.data),
+            'productos': serializer.data
+        })
 
     @extend_schema(
         description="Obtener profesionales asignados a un producto",

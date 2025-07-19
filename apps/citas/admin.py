@@ -90,7 +90,8 @@ class ProductoProfesionalAdmin(admin.ModelAdmin):
     get_producto.short_description = 'Producto'
     
     def get_profesional(self, obj):
-        return f"{obj.profesional.usuario.nombres} {obj.profesional.usuario.apellidos}"
+        # Ahora profesional apunta directamente a Usuario
+        return f"{obj.profesional.nombres} {obj.profesional.apellidos}"
     get_profesional.short_description = 'Profesional'
 
 

@@ -1,10 +1,15 @@
 from rest_framework import serializers
+import logging
+from datetime import datetime
 from .models import (
     Usuario, EstadoChat, Profesional, Cliente, Producto, 
     HistorialEstadoCita, Cita, ProductoProfesional,
     TipoDocumentoEnum, TipoUsuarioEnum, EstadoCitaEnum,
     ApiKey
 )
+
+# Logger específico para serializadores
+logger = logging.getLogger(__name__)
 
 
 class UsuarioSerializer(serializers.ModelSerializer):
@@ -116,10 +121,26 @@ class ClienteSerializer(serializers.ModelSerializer):
 
 class ProductoSerializer(serializers.ModelSerializer):
     """Serializador para el modelo Producto"""
+    profesionales = serializers.SerializerMethodField()
     
     class Meta:
         model = Producto
-        fields = ['id', 'nombre', 'descripcion', 'es_agendable_por_bot', 'duracion_minutos']
+        fields = ['id', 'nombre', 'descripcion', 'es_agendable_por_bot', 'duracion_minutos', 'profesionales']
+
+    def get_profesionales(self, obj):
+        """Obtener profesionales asignados a este producto"""
+        # Ahora ProductoProfesional apunta directamente a Usuario
+        usuarios_profesionales = Usuario.objects.filter(
+            productoprofesional__producto=obj,
+            tipo=TipoUsuarioEnum.PROFESIONAL
+        ).select_related('profesional')
+        return [{
+            'id': usuario.id,
+            'nombres': usuario.nombres,
+            'apellidos': usuario.apellidos,
+            'cargo': usuario.profesional.cargo if hasattr(usuario, 'profesional') else None,
+            'numero_whatsapp': usuario.profesional.numero_whatsapp if hasattr(usuario, 'profesional') else None
+        } for usuario in usuarios_profesionales]
 
     def validate_duracion_minutos(self, value):
         """Validar que la duración sea positiva"""
@@ -155,6 +176,10 @@ class CitaSerializer(serializers.ModelSerializer):
     estado_actual = HistorialEstadoCitaSerializer(read_only=True)
     estado_actual_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
     
+    # Campos personalizados para fechas en formato dd/mm/aaaa hh:mm
+    fecha_hora_inicio = serializers.CharField(write_only=True)
+    fecha_hora_fin = serializers.CharField(write_only=True)
+    
     class Meta:
         model = Cita
         fields = [
@@ -165,39 +190,178 @@ class CitaSerializer(serializers.ModelSerializer):
             'observaciones'
         ]
 
-    def validate_cliente_id(self, value):
-        """Validar que el cliente existe y es de tipo Cliente"""
+    def to_representation(self, instance):
+        """Personalizar la representación de salida"""
+        data = super().to_representation(instance)
+        
+        # Formatear fechas en la respuesta (dd/mm/aaaa hh:mm)
+        if instance.fecha_hora_inicio:
+            data['fecha_hora_inicio'] = instance.fecha_hora_inicio.strftime('%d/%m/%Y %H:%M')
+        if instance.fecha_hora_fin:
+            data['fecha_hora_fin'] = instance.fecha_hora_fin.strftime('%d/%m/%Y %H:%M')
+            
+        return data
+
+    def validate_fecha_hora_inicio(self, value):
+        """Validar y convertir fecha_hora_inicio desde formato dd/mm/aaaa hh:mm"""
+        logger.info(f"=== VALIDACIÓN FECHA_HORA_INICIO - Valor: {value} ===")
+        
         try:
+            # Convertir desde formato dd/mm/aaaa hh:mm
+            fecha_convertida = datetime.strptime(value, '%d/%m/%Y %H:%M')
+            logger.info(f"Fecha convertida exitosamente: {fecha_convertida}")
+            return fecha_convertida
+        except ValueError as e:
+            logger.error(f"Error de validación de fecha: {str(e)}")
+            raise serializers.ValidationError(
+                'El formato de fecha debe ser dd/mm/aaaa hh:mm (ejemplo: 20/07/2025 14:30)'
+            )
+
+    def validate_fecha_hora_fin(self, value):
+        """Validar y convertir fecha_hora_fin desde formato dd/mm/aaaa hh:mm"""
+        logger.info(f"=== VALIDACIÓN FECHA_HORA_FIN - Valor: {value} ===")
+        
+        try:
+            # Convertir desde formato dd/mm/aaaa hh:mm
+            fecha_convertida = datetime.strptime(value, '%d/%m/%Y %H:%M')
+            logger.info(f"Fecha convertida exitosamente: {fecha_convertida}")
+            return fecha_convertida
+        except ValueError as e:
+            logger.error(f"Error de validación de fecha: {str(e)}")
+            raise serializers.ValidationError(
+                'El formato de fecha debe ser dd/mm/aaaa hh:mm (ejemplo: 20/07/2025 15:30)'
+            )
+
+    def validate_cliente_id(self, value):
+        """Validar que el cliente existe y es realmente un Cliente registrado"""
+        logger.info(f"=== VALIDACIÓN CLIENTE_ID - ID: {value} ===")
+        
+        try:
+            # Verificar que el usuario existe
             usuario = Usuario.objects.get(id=value)
+            logger.info(f"Usuario encontrado - ID: {usuario.id}, Tipo: {usuario.tipo}")
+            
+            # Verificar que es de tipo CLIENTE
             if usuario.tipo != TipoUsuarioEnum.CLIENTE:
-                raise serializers.ValidationError("El usuario debe ser de tipo Cliente")
+                logger.error(f"Error de validación: Usuario no es CLIENTE. Tipo: {usuario.tipo}")
+                raise serializers.ValidationError(
+                    f"El usuario debe ser de tipo CLIENTE. Tipo actual: {usuario.tipo}"
+                )
+            
+            # Verificar que existe el registro Cliente relacionado
+            if not hasattr(usuario, 'cliente'):
+                logger.error(f"Error de validación: Usuario {usuario.id} no tiene perfil Cliente")
+                raise serializers.ValidationError(
+                    "El usuario no tiene un perfil de Cliente asociado"
+                )
+            
+            logger.info(f"Validación cliente_id exitosa - Cliente ID: {usuario.cliente.id}")
             return value
         except Usuario.DoesNotExist:
+            logger.error(f"Error de validación: Usuario {value} no existe")
             raise serializers.ValidationError("El cliente especificado no existe")
 
     def validate_profesional_asignado_id(self, value):
-        """Validar que el profesional existe y es de tipo Profesional"""
+        """Validar que el profesional existe y es realmente un Profesional registrado"""
         if value is None:
+            logger.info("Profesional asignado es None - validación OK")
             return value
+            
+        logger.info(f"=== VALIDACIÓN PROFESIONAL_ID - ID: {value} ===")
+        
         try:
+            # Verificar que el usuario existe
             usuario = Usuario.objects.get(id=value)
+            logger.info(f"Usuario encontrado - ID: {usuario.id}, Tipo: {usuario.tipo}")
+            
+            # Verificar que es de tipo PROFESIONAL
             if usuario.tipo != TipoUsuarioEnum.PROFESIONAL:
-                raise serializers.ValidationError("El usuario debe ser de tipo Profesional")
+                logger.error(f"Error de validación: Usuario no es PROFESIONAL. Tipo: {usuario.tipo}")
+                raise serializers.ValidationError(
+                    f"El usuario debe ser de tipo PROFESIONAL. Tipo actual: {usuario.tipo}"
+                )
+            
+            # Verificar que existe el registro Profesional relacionado
+            if not hasattr(usuario, 'profesional'):
+                logger.error(f"Error de validación: Usuario {usuario.id} no tiene perfil Profesional")
+                raise serializers.ValidationError(
+                    "El usuario no tiene un perfil de Profesional asociado"
+                )
+            
+            logger.info(f"Validación profesional_id exitosa - Profesional ID: {usuario.profesional.id}")
             return value
         except Usuario.DoesNotExist:
+            logger.error(f"Error de validación: Usuario {value} no existe")
             raise serializers.ValidationError("El profesional especificado no existe")
+
+    def validate_producto_id(self, value):
+        """Validar que el producto existe"""
+        logger.info(f"=== VALIDACIÓN PRODUCTO_ID - ID: {value} ===")
+        
+        try:
+            producto = Producto.objects.get(id=value)
+            logger.info(f"Producto encontrado - ID: {producto.id}, Nombre: {producto.nombre}")
+            return value
+        except Producto.DoesNotExist:
+            logger.error(f"Error de validación: Producto {value} no existe")
+            raise serializers.ValidationError("El producto especificado no existe")
 
     def validate(self, data):
         """Validaciones cruzadas"""
+        logger.info("=== VALIDACIONES CRUZADAS CITA ===")
+        
         fecha_inicio = data.get('fecha_hora_inicio')
         fecha_fin = data.get('fecha_hora_fin')
         
+        # Validar fechas
         if fecha_inicio and fecha_fin:
+            logger.info(f"Validando fechas - Inicio: {fecha_inicio}, Fin: {fecha_fin}")
             if fecha_inicio >= fecha_fin:
+                logger.error("Error de validación: Fecha fin debe ser posterior a fecha inicio")
                 raise serializers.ValidationError({
                     'fecha_hora_fin': 'La fecha de fin debe ser posterior a la fecha de inicio'
                 })
         
+        # Validar que el profesional pueda atender el producto
+        profesional_id = data.get('profesional_asignado_id')
+        producto_id = data.get('producto_id')
+        
+        if profesional_id and producto_id:
+            logger.info(f"Validando relación Profesional-Producto - Profesional ID: {profesional_id}, Producto ID: {producto_id}")
+            
+            # Primero verificar que ambos existen (aunque ya se validaron individualmente)
+            try:
+                profesional = Usuario.objects.get(id=profesional_id)
+                producto = Producto.objects.get(id=producto_id)
+                logger.info(f"Verificación exitosa - Profesional: {profesional.nombres} {profesional.apellidos}, Producto: {producto.nombre}")
+            except Usuario.DoesNotExist:
+                logger.error(f"Error: Usuario profesional {profesional_id} no encontrado en validación cruzada")
+                raise serializers.ValidationError({
+                    'profesional_asignado_id': 'El profesional especificado no existe'
+                })
+            except Producto.DoesNotExist:
+                logger.error(f"Error: Producto {producto_id} no encontrado en validación cruzada")
+                raise serializers.ValidationError({
+                    'producto_id': 'El producto especificado no existe'
+                })
+            
+            # Verificar que existe una relación ProductoProfesional
+            relacion_existe = ProductoProfesional.objects.filter(
+                profesional_id=profesional_id,
+                producto_id=producto_id
+            ).exists()
+            
+            if not relacion_existe:
+                logger.error(f"Error de validación: No existe relación ProductoProfesional para profesional {profesional_id} y producto {producto_id}")
+                error_msg = f'El profesional {profesional.nombres} {profesional.apellidos} no está autorizado para atender el producto "{producto.nombre}"'
+                logger.error(f"Error detallado: {error_msg}")
+                raise serializers.ValidationError({
+                    'profesional_asignado_id': error_msg
+                })
+            else:
+                logger.info("Relación Profesional-Producto validada exitosamente")
+        
+        logger.info("=== VALIDACIONES CRUZADAS COMPLETADAS ===")
         return data
 
 
@@ -205,12 +369,34 @@ class ProductoProfesionalSerializer(serializers.ModelSerializer):
     """Serializador para el modelo ProductoProfesional"""
     producto = ProductoSerializer(read_only=True)
     producto_id = serializers.IntegerField(write_only=True)
-    profesional = ProfesionalSerializer(read_only=True)
+    profesional = UsuarioSerializer(read_only=True)
     profesional_id = serializers.IntegerField(write_only=True)
     
     class Meta:
         model = ProductoProfesional
         fields = ['id', 'producto', 'producto_id', 'profesional', 'profesional_id']
+
+    def validate_profesional_id(self, value):
+        """Validar que el profesional existe y es de tipo PROFESIONAL"""
+        logger.info(f"=== VALIDACIÓN PROFESIONAL_ID en ProductoProfesional - ID: {value} ===")
+        
+        try:
+            # Verificar que el usuario existe
+            usuario = Usuario.objects.get(id=value)
+            logger.info(f"Usuario encontrado - ID: {usuario.id}, Tipo: {usuario.tipo}")
+            
+            # Verificar que es de tipo PROFESIONAL
+            if usuario.tipo != TipoUsuarioEnum.PROFESIONAL:
+                logger.error(f"Error de validación: Usuario no es PROFESIONAL. Tipo: {usuario.tipo}")
+                raise serializers.ValidationError(
+                    f"El usuario debe ser de tipo PROFESIONAL. Tipo actual: {usuario.tipo}"
+                )
+            
+            logger.info(f"Validación profesional_id exitosa en ProductoProfesional - Usuario ID: {usuario.id}")
+            return value
+        except Usuario.DoesNotExist:
+            logger.error(f"Error de validación: Usuario {value} no existe")
+            raise serializers.ValidationError("El profesional especificado no existe")
 
     def validate(self, data):
         """Validar que la combinación producto-profesional no exista"""
@@ -279,10 +465,26 @@ class UsuarioListSerializer(serializers.ModelSerializer):
 
 class ProductoListSerializer(serializers.ModelSerializer):
     """Serializador simplificado para listados de productos"""
+    profesionales = serializers.SerializerMethodField()
     
     class Meta:
         model = Producto
-        fields = ['id', 'nombre', 'duracion_minutos', 'es_agendable_por_bot']
+        fields = ['id', 'nombre', 'duracion_minutos', 'es_agendable_por_bot', 'profesionales']
+
+    def get_profesionales(self, obj):
+        """Obtener profesionales asignados a este producto"""
+        # Ahora ProductoProfesional apunta directamente a Usuario
+        usuarios_profesionales = Usuario.objects.filter(
+            productoprofesional__producto=obj,
+            tipo=TipoUsuarioEnum.PROFESIONAL
+        ).select_related('profesional')
+        return [{
+            'id': usuario.id,
+            'nombres': usuario.nombres,
+            'apellidos': usuario.apellidos,
+            'cargo': usuario.profesional.cargo if hasattr(usuario, 'profesional') else None,
+            'numero_whatsapp': usuario.profesional.numero_whatsapp if hasattr(usuario, 'profesional') else None
+        } for usuario in usuarios_profesionales]
 
 
 class CitaListSerializer(serializers.ModelSerializer):
@@ -300,3 +502,15 @@ class CitaListSerializer(serializers.ModelSerializer):
             'cliente_nombre', 'cliente_apellidos', 'producto_nombre',
             'profesional_nombre', 'estado_cita'
         ]
+
+    def to_representation(self, instance):
+        """Personalizar la representación de salida con fechas en formato dd/mm/aaaa hh:mm"""
+        data = super().to_representation(instance)
+        
+        # Formatear fechas en la respuesta (dd/mm/aaaa hh:mm)
+        if instance.fecha_hora_inicio:
+            data['fecha_hora_inicio'] = instance.fecha_hora_inicio.strftime('%d/%m/%Y %H:%M')
+        if instance.fecha_hora_fin:
+            data['fecha_hora_fin'] = instance.fecha_hora_fin.strftime('%d/%m/%Y %H:%M')
+            
+        return data

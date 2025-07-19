@@ -217,7 +217,7 @@ class Cita(models.Model):
 
 class ProductoProfesional(models.Model):
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE, db_index=True)
-    profesional = models.ForeignKey(Profesional, on_delete=models.CASCADE, db_index=True)
+    profesional = models.ForeignKey(Usuario, on_delete=models.CASCADE, db_index=True)
 
     class Meta:
         unique_together = ('producto', 'profesional')
