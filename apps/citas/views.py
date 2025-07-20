@@ -963,7 +963,7 @@ class ProductoViewSet(viewsets.ModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
         
         # Optimizar consulta para incluir profesionales
-        queryset = queryset.prefetch_related('productoprofesional_set__profesional__usuario')
+        queryset = queryset.prefetch_related('productoprofesional_set__profesional')
         
         page = self.paginate_queryset(queryset)
         if page is not None:

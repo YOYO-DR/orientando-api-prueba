@@ -1,0 +1,51 @@
+
+## Ejemplo de Consultar Productos
+
+### Entrada válida:
+```json
+{
+  "accion": "consultar_productos",
+  "datos": {}
+}
+```
+
+### Respuesta exitosa (solo el array results):
+```json
+[
+  {
+    "id": 2,
+    "nombre": "Consulta de pareja",
+    "duracion_minutos": 30,
+    "es_agendable_por_bot": true,
+    "profesionales": [
+      {
+        "id": 3,
+        "nombres": "santiago",
+        "apellidos": "jimenez",
+        "cargo": null,
+        "numero_whatsapp": "573148743556"
+      }
+    ]
+  },
+  {
+    "id": 1,
+    "nombre": "Consulta general",
+    "duracion_minutos": 50,
+    "es_agendable_por_bot": true,
+    "profesionales": [
+      {
+        "id": 2,
+        "nombres": "steven",
+        "apellidos": "lucano",
+        "cargo": "Psicólogo general",
+        "numero_whatsapp": "573148743539"
+      }
+    ]
+  }
+]
+```
+
+### Respuesta si no hay productos:
+```json
+[]
+```
