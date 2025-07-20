@@ -121,11 +121,12 @@ class ClienteSerializer(serializers.ModelSerializer):
 
 class ProductoSerializer(serializers.ModelSerializer):
     """Serializador para el modelo Producto"""
+    producto_id = serializers.IntegerField(source='id', read_only=True)
     profesionales = serializers.SerializerMethodField()
     
     class Meta:
         model = Producto
-        fields = ['id', 'nombre', 'descripcion', 'es_agendable_por_bot', 'duracion_minutos', 'profesionales']
+        fields = ['producto_id', 'nombre', 'descripcion', 'es_agendable_por_bot', 'duracion_minutos', 'profesionales']
 
     def get_profesionales(self, obj):
         """Obtener profesionales asignados a este producto"""
@@ -135,7 +136,7 @@ class ProductoSerializer(serializers.ModelSerializer):
             tipo=TipoUsuarioEnum.PROFESIONAL
         ).select_related('profesional')
         return [{
-            'id': usuario.id,
+            'profesional_id': usuario.id,
             'nombres': usuario.nombres,
             'apellidos': usuario.apellidos,
             'cargo': usuario.profesional.cargo if hasattr(usuario, 'profesional') else None,
@@ -470,11 +471,12 @@ class UsuarioListSerializer(serializers.ModelSerializer):
 
 class ProductoListSerializer(serializers.ModelSerializer):
     """Serializador simplificado para listados de productos"""
+    producto_id = serializers.IntegerField(source='id', read_only=True)
     profesionales = serializers.SerializerMethodField()
     
     class Meta:
         model = Producto
-        fields = ['id', 'nombre', 'duracion_minutos', 'es_agendable_por_bot', 'profesionales']
+        fields = ['producto_id', 'nombre', 'duracion_minutos', 'es_agendable_por_bot', 'profesionales']
 
     def get_profesionales(self, obj):
         """Obtener profesionales asignados a este producto"""
@@ -484,7 +486,7 @@ class ProductoListSerializer(serializers.ModelSerializer):
             tipo=TipoUsuarioEnum.PROFESIONAL
         ).select_related('profesional')
         return [{
-            'id': usuario.id,
+            'profesional_id': usuario.id,
             'nombres': usuario.nombres,
             'apellidos': usuario.apellidos,
             'cargo': usuario.profesional.cargo if hasattr(usuario, 'profesional') else None,

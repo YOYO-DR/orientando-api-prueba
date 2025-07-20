@@ -402,13 +402,13 @@ La nueva API acepta los datos directamente en estructura plana:
     "previous": null,
     "results": [
       {
-        "id": 2,
+        "producto_id": 2,
         "nombre": "Consulta de pareja",
         "duracion_minutos": 30,
         "es_agendable_por_bot": true,
         "profesionales": [
           {
-            "id": 3,
+            "profesional_id": 3,
             "nombres": "santiago",
             "apellidos": "jimenez",
             "cargo": null,
@@ -427,14 +427,14 @@ La nueva API acepta los datos directamente en estructura plana:
 - La estructura incluye los datos del producto y profesionales:
   ```json
   {
-    "id": 45,
+    "producto_id": 45,
     "nombre": "Consulta General",
     "descripcion": "Consulta psicológica general",
     "es_agendable_por_bot": true,
     "duracion_minutos": 50,
     "profesionales": [
       {
-        "id": 2,
+        "profesional_id": 2,
         "nombres": "Dr. Juan",
         "apellidos": "Pérez",
         "cargo": "Psicólogo Clínico",
@@ -1384,13 +1384,13 @@ Estas validaciones son automáticas, no necesitas implementarlas en el sub-agent
 ```json
 [
   {
-    "id": 2,
+    "producto_id": 2,
     "nombre": "Consulta de pareja",
     "duracion_minutos": 30,
     "es_agendable_por_bot": true,
     "profesionales": [
       {
-        "id": 3,
+        "profesional_id": 3,
         "nombres": "santiago",
         "apellidos": "jimenez",
         "cargo": null,
@@ -1399,13 +1399,13 @@ Estas validaciones son automáticas, no necesitas implementarlas en el sub-agent
     ]
   },
   {
-    "id": 1,
+    "producto_id": 1,
     "nombre": "Consulta general",
     "duracion_minutos": 50,
     "es_agendable_por_bot": true,
     "profesionales": [
       {
-        "id": 2,
+        "profesional_id": 2,
         "nombres": "steven",
         "apellidos": "lucano",
         "cargo": "Psicólogo general",
@@ -1431,21 +1431,21 @@ Estas validaciones son automáticas, no necesitas implementarlas en el sub-agent
 ### Respuesta exitosa:
 ```json
 {
-  "id": 45,
+  "producto_id": 45,
   "nombre": "Consulta General",
   "descripcion": "Consulta psicológica general",
   "es_agendable_por_bot": true,
   "duracion_minutos": 50,
   "profesionales": [
     {
-      "id": 2,
+      "profesional_id": 2,
       "nombres": "Dr. Juan",
       "apellidos": "Pérez",
       "cargo": "Psicólogo Clínico",
       "numero_whatsapp": "573001234567"
     },
     {
-      "id": 3,
+      "profesional_id": 3,
       "nombres": "Dra. María",
       "apellidos": "García",
       "cargo": "Psicóloga Infantil",

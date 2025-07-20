@@ -997,14 +997,14 @@ class ProductoViewSet(viewsets.ModelViewSet):
         
         Respuesta exitosa:
         {
-            "id": 45,
+            "producto_id": 45,
             "nombre": "Consulta General",
             "descripcion": "Consulta psicológica general",
             "es_agendable_por_bot": true,
             "duracion_minutos": 50,
             "profesionales": [
                 {
-                    "id": 2,
+                    "profesional_id": 2,
                     "nombres": "Dr. Juan",
                     "apellidos": "Pérez",
                     "cargo": "Psicólogo Clínico",
