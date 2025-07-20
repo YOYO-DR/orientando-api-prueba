@@ -194,6 +194,11 @@ class CitaSerializer(serializers.ModelSerializer):
         """Personalizar la representación de salida"""
         data = super().to_representation(instance)
         
+        # Agregar campos adicionales para mejor identificación
+        data['cita_id'] = instance.id
+        data['cliente_id'] = instance.cliente.id if instance.cliente else None
+        data['profesional_id'] = instance.profesional_asignado.id if instance.profesional_asignado else None
+        
         # Formatear fechas en la respuesta (dd/mm/aaaa hh:mm)
         if instance.fecha_hora_inicio:
             data['fecha_hora_inicio'] = instance.fecha_hora_inicio.strftime('%d/%m/%Y %H:%M')
@@ -489,18 +494,23 @@ class ProductoListSerializer(serializers.ModelSerializer):
 
 class CitaListSerializer(serializers.ModelSerializer):
     """Serializador simplificado para listados de citas"""
+    cita_id = serializers.IntegerField(source='id', read_only=True)
+    cliente_id = serializers.IntegerField(source='cliente.id', read_only=True)
     cliente_nombre = serializers.CharField(source='cliente.nombres', read_only=True)
     cliente_apellidos = serializers.CharField(source='cliente.apellidos', read_only=True)
     producto_nombre = serializers.CharField(source='producto.nombre', read_only=True)
+    profesional_id = serializers.IntegerField(source='profesional_asignado.id', read_only=True)
     profesional_nombre = serializers.CharField(source='profesional_asignado.nombres', read_only=True)
     estado_cita = serializers.CharField(source='estado_actual.estado_cita', read_only=True)
+    google_calendar_event_id = serializers.CharField(read_only=True)
     
     class Meta:
         model = Cita
         fields = [
-            'id', 'fecha_hora_inicio', 'fecha_hora_fin',
+            'cita_id', 'cliente_id', 'fecha_hora_inicio', 'fecha_hora_fin',
             'cliente_nombre', 'cliente_apellidos', 'producto_nombre',
-            'profesional_nombre', 'estado_cita'
+            'profesional_id', 'profesional_nombre', 'estado_cita',
+            'google_calendar_event_id'
         ]
 
     def to_representation(self, instance):
