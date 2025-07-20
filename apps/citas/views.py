@@ -1,7 +1,6 @@
-from rest_framework import viewsets, status, filters
+from rest_framework import viewsets, status, filters, mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -13,31 +12,22 @@ logger = logging.getLogger(__name__)
 from .models import (
     Usuario, EstadoChat, Profesional, Cliente, Producto,
     HistorialEstadoCita, Cita, ProductoProfesional,
-    TipoUsuarioEnum, EstadoCitaEnum, ApiKey
+    TipoUsuarioEnum
 )
 from .serializers import (
-    UsuarioSerializer, UsuarioListSerializer,
+    UsuarioSerializer,
     EstadoChatSerializer,
     ProfesionalSerializer,
     ClienteSerializer,
     ProductoSerializer, ProductoListSerializer,
     HistorialEstadoCitaSerializer,
     CitaSerializer, CitaListSerializer,
-    ProductoProfesionalSerializer,
-    ApiKeySerializer, ApiKeyCreateSerializer, ApiKeyListSerializer
+    ProductoProfesionalSerializer
 )
-from .authentication import ApiKeyAuthentication
-from .permissions import IsApiKeyOrAuthenticated, ApiKeyFullAccess
+from .permissions import IsApiKeyOrAuthenticated
 
-@extend_schema_view(
-    list=extend_schema(description="Listar todos los estados de chat"),
-    create=extend_schema(description="Crear un nuevo estado de chat"),
-    retrieve=extend_schema(description="Obtener un estado de chat específico"),
-    update=extend_schema(description="Actualizar un estado de chat"),
-    partial_update=extend_schema(description="Actualizar parcialmente un estado de chat"),
-    destroy=extend_schema(description="Eliminar un estado de chat")
-)
-class EstadoChatViewSet(viewsets.ModelViewSet):
+@extend_schema_view()
+class EstadoChatViewSet(viewsets.GenericViewSet):
     """
     ViewSet para gestionar estados de conversaciones WhatsApp.
     
@@ -47,14 +37,12 @@ class EstadoChatViewSet(viewsets.ModelViewSet):
     queryset = EstadoChat.objects.all()
     serializer_class = EstadoChatSerializer
     permission_classes = [IsApiKeyOrAuthenticated]
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['numero_whatsapp']
 
     @extend_schema(
         description="Buscar estado por número de WhatsApp",
         responses={200: EstadoChatSerializer}
     )
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='por-numero')
     def por_numero(self, request):
         """Buscar estado de chat por número de WhatsApp"""
         numero = request.query_params.get('numero', None)
@@ -75,7 +63,7 @@ class EstadoChatViewSet(viewsets.ModelViewSet):
         request=EstadoChatSerializer,
         responses={200: EstadoChatSerializer}
     )
-    @action(detail=False, methods=['put', 'patch'], url_path='actualizar-por-numero')
+    @action(detail=False, methods=['patch'], url_path='actualizar-por-numero')
     def actualizar_por_numero(self, request):
         """
         Actualizar estado de chat utilizando el número de WhatsApp enviado en el JSON
@@ -161,15 +149,8 @@ class EstadoChatViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@extend_schema_view(
-    list=extend_schema(description="Listar todos los profesionales"),
-    create=extend_schema(description="Crear un nuevo profesional"),
-    retrieve=extend_schema(description="Obtener un profesional específico"),
-    update=extend_schema(description="Actualizar un profesional"),
-    partial_update=extend_schema(description="Actualizar parcialmente un profesional"),
-    destroy=extend_schema(description="Eliminar un profesional")
-)
-class ProfesionalViewSet(viewsets.ModelViewSet):
+@extend_schema_view()
+class ProfesionalViewSet(viewsets.GenericViewSet):
     """
     ViewSet para gestionar profesionales.
     
@@ -179,22 +160,6 @@ class ProfesionalViewSet(viewsets.ModelViewSet):
     queryset = Profesional.objects.select_related('usuario').all()
     serializer_class = ProfesionalSerializer
     permission_classes = [IsApiKeyOrAuthenticated]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['usuario__nombres', 'usuario__apellidos', 'cargo', 'numero_whatsapp']
-    ordering_fields = ['usuario__nombres', 'cargo']
-    ordering = ['usuario__nombres']
-
-    @extend_schema(
-        description="Obtener productos asignados a un profesional",
-        responses={200: ProductoListSerializer(many=True)}
-    )
-    @action(detail=True, methods=['get'])
-    def productos(self, request, pk=None):
-        """Obtener productos asignados a un profesional"""
-        profesional = self.get_object()
-        productos = Producto.objects.filter(productoprofesional__profesional=profesional)
-        serializer = ProductoListSerializer(productos, many=True)
-        return Response(serializer.data)
 
     @extend_schema(
         description="Buscar profesional por ID de usuario (enviado en JSON)",
@@ -294,15 +259,8 @@ class ProfesionalViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@extend_schema_view(
-    list=extend_schema(description="Listar todos los clientes"),
-    create=extend_schema(description="Crear un nuevo cliente"),
-    retrieve=extend_schema(description="Obtener un cliente específico"),
-    update=extend_schema(description="Actualizar un cliente"),
-    partial_update=extend_schema(description="Actualizar parcialmente un cliente"),
-    destroy=extend_schema(description="Eliminar un cliente")
-)
-class ClienteViewSet(viewsets.ModelViewSet):
+@extend_schema_view()
+class ClienteViewSet(viewsets.GenericViewSet):
     """
     ViewSet para gestionar clientes.
     
@@ -312,12 +270,79 @@ class ClienteViewSet(viewsets.ModelViewSet):
     queryset = Cliente.objects.select_related('usuario', 'estado_chat').all()
     serializer_class = ClienteSerializer
     permission_classes = [IsApiKeyOrAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['remitido_colegio', 'colegio']
-    search_fields = ['usuario__nombres', 'usuario__apellidos', 'barrio', 'colegio']
-    ordering_fields = ['usuario__nombres', 'edad']
-    ordering = ['usuario__nombres']
 
+    @extend_schema(
+        description="Crear cliente completo con usuario y estado de chat en estructura flat",
+        request={
+            "application/json": {
+                "example": {
+                    "nombres": "Juan Carlos",
+                    "apellidos": "Pérez García",
+                    "tipo_documento": "CC",
+                    "numero_documento": "12345678",
+                    "email": "juan.nuevo@email.com",
+                    "celular": "3009876543",
+                    "edad": 26,
+                    "barrio": "Zona Norte",
+                    "colegio": "Nuevo Colegio",
+                    "remitido_colegio": True,
+                    "nombre_acudiente": "María García",
+                    "direccion": "Calle 123 #45-67",
+                    "estado_chat": {
+                        "estado_conversacion": {
+                            "fase": "confirmacion_cita",
+                            "step": "seleccion_horario"
+                        },
+                        "numero_whatsapp": "57123465798"
+                    }
+                }
+            }
+        },
+        responses={
+            201: {
+                "description": "Cliente creado exitosamente",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "usuario_id": 123,
+                            "nombres": "Juan Carlos",
+                            "apellidos": "Pérez García",
+                            "tipo_documento": "CC",
+                            "numero_documento": "12345678",
+                            "email": "juan.nuevo@email.com",
+                            "celular": "3009876543",
+                            "edad": 26,
+                            "barrio": "Zona Norte",
+                            "colegio": "Nuevo Colegio",
+                            "remitido_colegio": True,
+                            "nombre_acudiente": "María García",
+                            "direccion": "Calle 123 #45-67",
+                            "estado_chat": {
+                                "numero_whatsapp": "57123465798",
+                                "estado_conversacion": {
+                                    "fase": "confirmacion_cita",
+                                    "step": "seleccion_horario"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                "description": "Datos inválidos",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "error": "Datos de usuario inválidos",
+                            "detalles": {
+                                "nombres": ["Este campo es requerido."]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
     def create(self, request, *args, **kwargs):
         """
         Crear cliente completo con usuario y estado de chat
@@ -476,181 +501,12 @@ class ClienteViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Error interno del servidor', 'detalles': str(e)}, 
                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    def update(self, request, *args, **kwargs):
-        """
-        Actualizar cliente completo con usuario y estado de chat
-        
-        Estructura esperada del JSON (estructura flat - todos los campos opcionales):
-        {
-            "nombres": "Juan Carlos",
-            "apellidos": "Pérez García",
-            "email": "juan.nuevo@email.com",
-            "celular": "3009876543",
-            "edad": 26,
-            "barrio": "Zona Norte",
-            "colegio": "Nuevo Colegio",
-            "remitido_colegio": true,
-            "nombre_acudiente": "María García",
-            "direccion": "Calle 123 #45-67",
-            "estado_chat": {
-                "estado_conversacion": {
-                    "fase": "confirmacion_cita",
-                    "step": "seleccion_horario"
-                },
-                "numero_whatsapp": "57123465798"
-            }
-        }
-        """
-        logger.info("=== INICIO - Actualizando cliente completo ===")
-        
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-        data = request.data
-        
-        logger.info(f"Actualizando cliente ID: {instance.id}")
-        logger.info(f"Datos recibidos: {data}")
-        
-        try:
-            from django.db import transaction
-            
-            with transaction.atomic():
-                # 1. Separar datos de Usuario y Cliente
-                campos_usuario = ['nombres', 'apellidos', 'tipo_documento', 'numero_documento', 'email', 'celular']
-                campos_cliente = ['edad', 'barrio', 'colegio', 'remitido_colegio', 'nombre_acudiente', 'direccion']
-                
-                usuario_data = {key: value for key, value in data.items() if key in campos_usuario}
-                cliente_data = {key: value for key, value in data.items() if key in campos_cliente}
-                estado_chat_data = data.get('estado_chat')
-                
-                logger.info(f"Datos usuario: {usuario_data}")
-                logger.info(f"Datos cliente: {cliente_data}")
-                logger.info(f"Datos estado_chat: {estado_chat_data}")
-                
-                # 2. Actualizar Usuario si hay datos
-                if usuario_data:
-                    usuario_serializer = UsuarioSerializer(
-                        instance.usuario, 
-                        data=usuario_data, 
-                        partial=True
-                    )
-                    if not usuario_serializer.is_valid():
-                        logger.error(f"Error validando usuario: {usuario_serializer.errors}")
-                        return Response({
-                            'error': 'Datos de usuario inválidos', 
-                            'detalles': usuario_serializer.errors
-                        }, status=status.HTTP_400_BAD_REQUEST)
-                    
-                    usuario_serializer.save()
-                    logger.info(f"Usuario actualizado - ID: {instance.usuario.id}")
-                
-                # 3. Actualizar datos del cliente si hay
-                if cliente_data:
-                    # Para campos que pueden ser null, permitir explícitamente valores None
-                    # Esto permite que el bot envíe "colegio": null para limpiar el campo
-                    cliente_serializer = ClienteSerializer(
-                        instance, 
-                        data=cliente_data, 
-                        partial=True
-                    )
-                    if not cliente_serializer.is_valid():
-                        logger.error(f"Error validando cliente: {cliente_serializer.errors}")
-                        return Response({
-                            'error': 'Datos de cliente inválidos', 
-                            'detalles': cliente_serializer.errors
-                        }, status=status.HTTP_400_BAD_REQUEST)
-                    
-                    cliente_serializer.save()
-                    logger.info(f"Cliente actualizado - ID: {instance.id}")
-                    logger.info(f"Campos actualizados: {list(cliente_data.keys())}")
-                
-                # 4. Actualizar EstadoChat si se proporciona
-                if 'estado_chat' in data:  # Verificar si el campo está presente en la trama
-                    if estado_chat_data is None:
-                        # Si estado_chat es null, eliminar la relación
-                        if instance.estado_chat:
-                            logger.info(f"Eliminando relación con EstadoChat - ID: {instance.estado_chat.id}")
-                            instance.estado_chat = None
-                            instance.save()
-                            logger.info("Relación con EstadoChat eliminada")
-                    else:
-                        # Si estado_chat tiene datos, crear o actualizar
-                        if instance.estado_chat:
-                            # Actualizar estado chat existente
-                            estado_chat_serializer = EstadoChatSerializer(
-                                instance.estado_chat, 
-                                data=estado_chat_data, 
-                                partial=True
-                            )
-                            if not estado_chat_serializer.is_valid():
-                                logger.error(f"Error validando estado chat: {estado_chat_serializer.errors}")
-                                return Response({
-                                    'error': 'Datos de estado chat inválidos', 
-                                    'detalles': estado_chat_serializer.errors
-                                }, status=status.HTTP_400_BAD_REQUEST)
-                            
-                            estado_chat_serializer.save()
-                            logger.info(f"EstadoChat actualizado - ID: {instance.estado_chat.id}")
-                        else:
-                            # Crear nuevo estado chat si no existe
-                            estado_chat_serializer = EstadoChatSerializer(data=estado_chat_data)
-                            if not estado_chat_serializer.is_valid():
-                                logger.error(f"Error validando nuevo estado chat: {estado_chat_serializer.errors}")
-                                return Response({
-                                    'error': 'Datos de estado chat inválidos', 
-                                    'detalles': estado_chat_serializer.errors
-                                }, status=status.HTTP_400_BAD_REQUEST)
-                            
-                            nuevo_estado_chat = estado_chat_serializer.save()
-                            instance.estado_chat = nuevo_estado_chat
-                            instance.save()
-                            logger.info(f"Nuevo EstadoChat creado - ID: {nuevo_estado_chat.id}")
-                
-                # 5. Retornar cliente actualizado en estructura flat (igual a la trama recibida)
-                cliente_actualizado = Cliente.objects.select_related('usuario', 'estado_chat').get(id=instance.id)
-                
-                # Construir respuesta en estructura flat
-                response_data = {
-                    'usuario_id': cliente_actualizado.usuario.id,  # ID para futuras actualizaciones
-                    'nombres': cliente_actualizado.usuario.nombres,
-                    'apellidos': cliente_actualizado.usuario.apellidos,
-                    'tipo_documento': cliente_actualizado.usuario.tipo_documento,
-                    'numero_documento': cliente_actualizado.usuario.numero_documento,
-                    'email': cliente_actualizado.usuario.email,
-                    'celular': cliente_actualizado.usuario.celular,
-                    'edad': cliente_actualizado.edad,
-                    'barrio': cliente_actualizado.barrio,
-                    'colegio': cliente_actualizado.colegio,
-                    'remitido_colegio': cliente_actualizado.remitido_colegio,
-                    'nombre_acudiente': cliente_actualizado.nombre_acudiente,
-                    'direccion': cliente_actualizado.direccion,
-                }
-                
-                # Agregar estado_chat si existe
-                if cliente_actualizado.estado_chat:
-                    response_data['estado_chat'] = {
-                        'numero_whatsapp': cliente_actualizado.estado_chat.numero_whatsapp,
-                        'estado_conversacion': cliente_actualizado.estado_chat.estado_conversacion,
-                    }
-                
-                logger.info("=== FIN - Cliente completo actualizado exitosamente ===")
-                return Response({
-                    'message': 'Cliente actualizado exitosamente',
-                    'data': response_data
-                })
-                
-        except Exception as e:
-            logger.error(f"Error actualizando cliente completo: {str(e)}")
-            return Response({
-                'error': 'Error interno del servidor', 
-                'detalles': str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
     @extend_schema(
         description="Actualizar cliente por ID de usuario (enviado en JSON)",
         request=ClienteSerializer,
         responses={200: ClienteSerializer}
     )
-    @action(detail=False, methods=['put', 'patch'], url_path='actualizar-por-usuario')
+    @action(detail=False, methods=['patch'], url_path='actualizar-por-usuario')
     def actualizar_por_usuario(self, request):
         """
         Actualizar cliente utilizando el ID del usuario enviado en el JSON
@@ -857,24 +713,10 @@ class ClienteViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @extend_schema(
-        description="Obtener citas de un cliente",
-        responses={200: CitaListSerializer(many=True)}
-    )
-    @action(detail=True, methods=['get'])
-    def citas(self, request, pk=None):
-        """Obtener todas las citas de un cliente"""
-        cliente = self.get_object()
-        citas = Cita.objects.filter(cliente=cliente.usuario).select_related(
-            'cliente', 'producto', 'profesional_asignado', 'estado_actual'
-        )
-        serializer = CitaListSerializer(citas, many=True)
-        return Response(serializer.data)
-
-    @extend_schema(
         description="Buscar cliente por número de documento (cédula)",
         responses={200: ClienteSerializer}
     )
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'],url_path='por-documento')
     def por_documento(self, request):
         """Buscar cliente por número de documento"""
         logger.info("=== INICIO - Endpoint por_documento llamado ===")
@@ -929,13 +771,8 @@ class ClienteViewSet(viewsets.ModelViewSet):
 
 @extend_schema_view(
     list=extend_schema(description="Listar todos los productos"),
-    create=extend_schema(description="Crear un nuevo producto"),
-    retrieve=extend_schema(description="Obtener un producto específico"),
-    update=extend_schema(description="Actualizar un producto"),
-    partial_update=extend_schema(description="Actualizar parcialmente un producto"),
-    destroy=extend_schema(description="Eliminar un producto")
 )
-class ProductoViewSet(viewsets.ModelViewSet):
+class ProductoViewSet(viewsets.GenericViewSet, mixins.ListModelMixin):
     """
     ViewSet para gestionar productos/servicios.
     
@@ -944,11 +781,6 @@ class ProductoViewSet(viewsets.ModelViewSet):
     """
     queryset = Producto.objects.all()
     permission_classes = [IsApiKeyOrAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['es_agendable_por_bot']
-    search_fields = ['nombre', 'descripcion']
-    ordering_fields = ['nombre', 'duracion_minutos']
-    ordering = ['nombre']
 
     def get_serializer_class(self):
         """Usar serializador simplificado para listados"""
@@ -1055,125 +887,10 @@ class ProductoViewSet(viewsets.ModelViewSet):
                 'detalles': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @extend_schema(
-        description="Buscar productos por nombre o descripción con profesionales",
-        responses={200: ProductoListSerializer(many=True)}
-    )
-    @action(detail=False, methods=['get'])
-    def buscar(self, request):
-        """
-        Buscar productos por nombre o descripción e incluir profesionales
-        
-        Parámetros:
-        - q: Término de búsqueda (busca en nombre y descripción)
-        - agendable_bot: true/false para filtrar solo productos agendables por bot
-        """
-        logger.info("=== INICIO - Búsqueda de productos con profesionales ===")
-        
-        query = request.query_params.get('q', '')
-        agendable_bot = request.query_params.get('agendable_bot', '')
-        
-        logger.info(f"Parámetros - q: '{query}', agendable_bot: '{agendable_bot}'")
-        
-        if not query.strip():
-            return Response({
-                'error': 'Parámetro q (término de búsqueda) es requerido'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Construir filtros
-        from django.db.models import Q
-        filtros = Q(nombre__icontains=query) | Q(descripcion__icontains=query)
-        
-        if agendable_bot.lower() == 'true':
-            filtros = filtros & Q(es_agendable_por_bot=True)
-        elif agendable_bot.lower() == 'false':
-            filtros = filtros & Q(es_agendable_por_bot=False)
-        
-        # Ejecutar búsqueda con profesionales incluidos
-        productos = Producto.objects.filter(filtros).prefetch_related(
-            'productoprofesional_set__profesional__usuario'
-        ).order_by('nombre')
-        
-        logger.info(f"Productos encontrados: {productos.count()}")
-        
-        serializer = ProductoListSerializer(productos, many=True)
-        
-        logger.info("=== FIN - Búsqueda de productos completada con profesionales ===")
-        return Response({
-            'query': query,
-            'total_encontrados': len(serializer.data),
-            'productos': serializer.data
-        })
-
-    @extend_schema(
-        description="Obtener productos agendables por bot con profesionales",
-        responses={200: ProductoListSerializer(many=True)}
-    )
-    @action(detail=False, methods=['get'])
-    def agendables_bot(self, request):
-        """Obtener solo productos agendables por bot con profesionales incluidos"""
-        logger.info("=== INICIO - Obteniendo productos agendables por bot ===")
-        
-        productos = self.queryset.filter(es_agendable_por_bot=True).prefetch_related(
-            'productoprofesional_set__profesional__usuario'
-        ).order_by('nombre')
-        
-        serializer = ProductoListSerializer(productos, many=True)
-        
-        logger.info(f"=== FIN - {len(serializer.data)} productos agendables por bot encontrados ===")
-        return Response({
-            'total_agendables': len(serializer.data),
-            'productos': serializer.data
-        })
-
-    @extend_schema(
-        description="Obtener profesionales asignados a un producto",
-        responses={200: ProfesionalSerializer(many=True)}
-    )
-    @action(detail=True, methods=['get'])
-    def profesionales(self, request, pk=None):
-        """Obtener profesionales asignados a un producto"""
-        producto = self.get_object()
-        profesionales = Profesional.objects.filter(
-            productoprofesional__producto=producto
-        ).select_related('usuario')
-        serializer = ProfesionalSerializer(profesionales, many=True)
-        return Response(serializer.data)
-
-
 @extend_schema_view(
-    list=extend_schema(description="Listar historial de estados de citas"),
-    create=extend_schema(description="Crear un nuevo estado de cita"),
-    retrieve=extend_schema(description="Obtener un estado específico"),
-    update=extend_schema(description="Actualizar un estado"),
-    partial_update=extend_schema(description="Actualizar parcialmente un estado"),
-    destroy=extend_schema(description="Eliminar un estado")
-)
-class HistorialEstadoCitaViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gestionar el historial de estados de citas.
-    
-    Permite rastrear los diferentes estados por los que
-    pasa una cita durante su ciclo de vida.
-    """
-    queryset = HistorialEstadoCita.objects.all()
-    serializer_class = HistorialEstadoCitaSerializer
-    permission_classes = [IsApiKeyOrAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['estado_cita']
-    ordering_fields = ['fecha_registro']
-    ordering = ['-fecha_registro']
-
-
-@extend_schema_view(
-    list=extend_schema(description="Listar todas las citas"),
     create=extend_schema(description="Crear una nueva cita"),
-    retrieve=extend_schema(description="Obtener una cita específica"),
-    update=extend_schema(description="Actualizar una cita"),
-    partial_update=extend_schema(description="Actualizar parcialmente una cita"),
-    destroy=extend_schema(description="Eliminar una cita")
 )
-class CitaViewSet(viewsets.ModelViewSet):
+class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
     """
     ViewSet para gestionar citas.
     
@@ -1184,11 +901,6 @@ class CitaViewSet(viewsets.ModelViewSet):
         'cliente', 'producto', 'profesional_asignado', 'estado_actual'
     ).all()
     permission_classes = [IsApiKeyOrAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['producto', 'profesional_asignado', 'estado_actual__estado_cita']
-    search_fields = ['cliente__nombres', 'cliente__apellidos', 'observaciones']
-    ordering_fields = ['fecha_hora_inicio', 'fecha_hora_fin']
-    ordering = ['fecha_hora_inicio']
 
     def get_serializer_class(self):
         """Usar serializador simplificado para listados"""
@@ -1200,7 +912,7 @@ class CitaViewSet(viewsets.ModelViewSet):
         description="Obtener citas por rango de fechas",
         responses={200: CitaListSerializer(many=True)}
     )
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'],url_path='por-fecha')
     def por_fecha(self, request):
         """
         Filtrar citas por rango de fechas
@@ -1244,22 +956,6 @@ class CitaViewSet(viewsets.ModelViewSet):
             
         serializer = CitaListSerializer(queryset, many=True)
         logger.info(f"=== FIN - Retornando todos los resultados ({len(serializer.data)} items) ===")
-        return Response(serializer.data)
-
-    @extend_schema(
-        description="Obtener citas de hoy",
-        responses={200: CitaListSerializer(many=True)}
-    )
-    @action(detail=False, methods=['get'])
-    def hoy(self, request):
-        """Obtener citas de hoy"""
-        from django.utils import timezone
-        hoy = timezone.now().date()
-        
-        citas = self.get_queryset().filter(
-            fecha_hora_inicio__date=hoy
-        )
-        serializer = CitaListSerializer(citas, many=True)
         return Response(serializer.data)
 
     @extend_schema(
@@ -1363,7 +1059,7 @@ class CitaViewSet(viewsets.ModelViewSet):
         request=CitaSerializer,
         responses={200: CitaSerializer}
     )
-    @action(detail=False, methods=['put', 'patch'], url_path='actualizar-por-id')
+    @action(detail=False, methods=['patch'], url_path='actualizar-por-id')
     def actualizar_por_id(self, request):
         """
         Actualizar cita utilizando el ID de la cita enviado en el JSON
@@ -1468,58 +1164,289 @@ class CitaViewSet(viewsets.ModelViewSet):
                 'detalles': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-@extend_schema_view(
-    list=extend_schema(description="Listar relaciones producto-profesional"),
-    create=extend_schema(description="Crear nueva relación producto-profesional"),
-    retrieve=extend_schema(description="Obtener una relación específica"),
-    update=extend_schema(description="Actualizar una relación"),
-    partial_update=extend_schema(description="Actualizar parcialmente una relación"),
-    destroy=extend_schema(description="Eliminar una relación")
-)
-class ProductoProfesionalViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gestionar relaciones entre productos y profesionales.
-    
-    Permite definir qué profesionales pueden atender
-    qué productos o servicios.
-    """
-    queryset = ProductoProfesional.objects.select_related(
-        'producto', 'profesional__usuario'
-    ).all()
-    serializer_class = ProductoProfesionalSerializer
-    permission_classes = [IsApiKeyOrAuthenticated]
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['producto', 'profesional']
+    @extend_schema(
+        description="Consultar cita por ID (enviado en JSON)",
+        request={
+            "application/json": {
+                "example": {
+                    "cita_id": 123
+                }
+            }
+        },
+        responses={
+            200: {
+                "description": "Cita encontrada exitosamente",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "cita": {
+                                "id": 123,
+                                "cliente": {
+                                    "id": 456,
+                                    "nombres": "Juan Carlos",
+                                    "apellidos": "Pérez García",
+                                    "email": "juan@email.com",
+                                    "celular": "3001234567"
+                                },
+                                "producto": {
+                                    "producto_id": 10,
+                                    "nombre": "Orientación Vocacional",
+                                    "precio": 150000
+                                },
+                                "profesional_asignado": {
+                                    "profesional_id": 789,
+                                    "nombres": "María Elena",
+                                    "apellidos": "González",
+                                    "email": "maria@orientando.com"
+                                },
+                                "fecha_hora_inicio": "25/12/2024 14:30",
+                                "fecha_hora_fin": "25/12/2024 15:30",
+                                "observaciones": "Cita de orientación vocacional",
+                                "google_calendar_event_id": "evento_123",
+                                "google_calendar_url_event": "https://calendar.google.com/calendar/event?eid=abcd1234567890",
+                                "estado_actual": "AGENDADO"
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                "description": "ID de cita no proporcionado",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "error": "cita_id es requerido en el JSON"
+                        }
+                    }
+                }
+            },
+            404: {
+                "description": "Cita no encontrada",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "error": "Cita no encontrada"
+                        }
+                    }
+                }
+            }
+        }
+    )
+    @action(detail=False, methods=['post'], url_path='consultar-por-id')
+    def consultar_por_id(self, request):
+        """
+        Consultar cita utilizando el ID de la cita enviado en el JSON
+        
+        Este endpoint permite al bot consultar una cita usando el ID de la cita
+        enviado en el cuerpo de la petición, no en la URL.
+        
+        URL FIJA: /api/citas/consultar-por-id/
+        
+        Estructura esperada del JSON:
+        {
+            "cita_id": 123
+        }
+        
+        Respuesta exitosa:
+        {
+            "cita": {
+                "id": 123,
+                "cliente": {...},
+                "producto": {...},
+                "profesional_asignado": {...},
+                "fecha_hora_inicio": "25/12/2024 14:30",
+                "fecha_hora_fin": "25/12/2024 15:30",
+                "observaciones": "...",
+                "google_calendar_event_id": "...",
+                "google_calendar_url_event": "...",
+                "estado_actual": "AGENDADO"
+            }
+        }
+        """
+        logger.info("=== INICIO - Consultando cita por ID (desde JSON) ===")
+        
+        data = request.data
+        cita_id = data.get('cita_id')
+        
+        logger.info(f"Datos recibidos: {data}")
+        logger.info(f"Cita ID extraído del JSON: {cita_id}")
+        
+        if not cita_id:
+            return Response({
+                'error': 'cita_id es requerido en el JSON'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Buscar la cita con todas las relaciones cargadas
+            cita = Cita.objects.select_related(
+                'cliente', 'producto', 'profesional_asignado', 'estado_actual'
+            ).get(id=cita_id)
+            
+            logger.info(f"Cita encontrada - ID: {cita.id}")
+            logger.info(f"Cliente: {cita.cliente.nombres} {cita.cliente.apellidos}")
+            logger.info(f"Producto: {cita.producto.nombre}")
+            if cita.profesional_asignado:
+                logger.info(f"Profesional: {cita.profesional_asignado.nombres} {cita.profesional_asignado.apellidos}")
+            logger.info(f"Estado actual: {cita.get_estado_actual_nombre()}")
+            
+            # Serializar la cita
+            serializer = CitaSerializer(cita)
+            
+            logger.info("=== FIN - Cita consultada exitosamente por ID (desde JSON) ===")
+            return Response({
+                'cita': serializer.data
+            })
+                
+        except Cita.DoesNotExist:
+            logger.error(f"Cita no encontrada con ID: {cita_id}")
+            return Response({
+                'error': 'Cita no encontrada'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error consultando cita por ID: {str(e)}")
+            return Response({
+                'error': 'Error interno del servidor',
+                'detalles': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @extend_schema(
-        description="Obtener relaciones por producto",
-        responses={200: ProductoProfesionalSerializer(many=True)}
+        description="Eliminar cita por ID (enviado en JSON)",
+        request={
+            "application/json": {
+                "example": {
+                    "cita_id": 123
+                }
+            }
+        },
+        responses={
+            200: {
+                "description": "Cita eliminada exitosamente",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "message": "Cita eliminada exitosamente",
+                            "cita_eliminada": {
+                                "id": 123,
+                                "cliente": "Juan Carlos Pérez García",
+                                "producto": "Orientación Vocacional",
+                                "fecha_hora_inicio": "25/12/2024 14:30",
+                                "fecha_hora_fin": "25/12/2024 15:30",
+                                "estado_actual": "AGENDADO"
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                "description": "ID de cita no proporcionado",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "error": "cita_id es requerido en el JSON"
+                        }
+                    }
+                }
+            },
+            404: {
+                "description": "Cita no encontrada",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "error": "Cita no encontrada"
+                        }
+                    }
+                }
+            }
+        }
     )
-    @action(detail=False, methods=['get'])
-    def por_producto(self, request):
-        """Obtener todas las relaciones de un producto específico"""
-        producto_id = request.query_params.get('producto_id', None)
-        if not producto_id:
-            return Response({'error': 'Parámetro producto_id es requerido'}, 
-                          status=status.HTTP_400_BAD_REQUEST)
+    @action(detail=False, methods=['delete'], url_path='eliminar-por-id')
+    def eliminar_por_id(self, request):
+        """
+        Eliminar cita utilizando el ID de la cita enviado en el JSON
         
-        relaciones = self.get_queryset().filter(producto_id=producto_id)
-        serializer = self.get_serializer(relaciones, many=True)
-        return Response(serializer.data)
-
-    @extend_schema(
-        description="Obtener relaciones por profesional",
-        responses={200: ProductoProfesionalSerializer(many=True)}
-    )
-    @action(detail=False, methods=['get'])
-    def por_profesional(self, request):
-        """Obtener todas las relaciones de un profesional específico"""
-        profesional_id = request.query_params.get('profesional_id', None)
-        if not profesional_id:
-            return Response({'error': 'Parámetro profesional_id es requerido'}, 
-                          status=status.HTTP_400_BAD_REQUEST)
+        Este endpoint permite al bot eliminar una cita usando el ID de la cita
+        enviado en el cuerpo de la petición, no en la URL.
         
-        relaciones = self.get_queryset().filter(profesional_id=profesional_id)
-        serializer = self.get_serializer(relaciones, many=True)
-        return Response(serializer.data)
+        URL FIJA: /api/citas/eliminar-por-id/
+        
+        Estructura esperada del JSON:
+        {
+            "cita_id": 123
+        }
+        
+        Respuesta exitosa:
+        {
+            "message": "Cita eliminada exitosamente",
+            "cita_eliminada": {
+                "id": 123,
+                "cliente": "Juan Carlos Pérez García",
+                "producto": "Orientación Vocacional",
+                "fecha_hora_inicio": "25/12/2024 14:30",
+                "fecha_hora_fin": "25/12/2024 15:30",
+                "estado_actual": "AGENDADO"
+            }
+        }
+        """
+        logger.info("=== INICIO - Eliminando cita por ID (desde JSON) ===")
+        
+        data = request.data
+        cita_id = data.get('cita_id')
+        
+        logger.info(f"Datos recibidos: {data}")
+        logger.info(f"Cita ID extraído del JSON: {cita_id}")
+        
+        if not cita_id:
+            return Response({
+                'error': 'cita_id es requerido en el JSON'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Buscar la cita con todas las relaciones cargadas
+            cita = Cita.objects.select_related(
+                'cliente', 'producto', 'profesional_asignado', 'estado_actual'
+            ).get(id=cita_id)
+            
+            logger.info(f"Cita encontrada para eliminar - ID: {cita.id}")
+            logger.info(f"Cliente: {cita.cliente.nombres} {cita.cliente.apellidos}")
+            logger.info(f"Producto: {cita.producto.nombre}")
+            if cita.profesional_asignado:
+                logger.info(f"Profesional: {cita.profesional_asignado.nombres} {cita.profesional_asignado.apellidos}")
+            logger.info(f"Estado actual: {cita.get_estado_actual_nombre()}")
+            
+            # Guardar información de la cita antes de eliminarla
+            cita_info = {
+                'id': cita.id,
+                'cliente': f"{cita.cliente.nombres} {cita.cliente.apellidos}",
+                'producto': cita.producto.nombre,
+                'fecha_hora_inicio': cita.fecha_hora_inicio.strftime('%d/%m/%Y %H:%M') if cita.fecha_hora_inicio else None,
+                'fecha_hora_fin': cita.fecha_hora_fin.strftime('%d/%m/%Y %H:%M') if cita.fecha_hora_fin else None,
+                'estado_actual': cita.get_estado_actual_nombre(),
+                'google_calendar_event_id': cita.google_calendar_event_id,
+                'google_calendar_url_event': cita.google_calendar_url_event
+            }
+            
+            # Eliminar la cita usando transacción para asegurar consistencia
+            from django.db import transaction
+            
+            with transaction.atomic():
+                logger.info(f"Eliminando cita ID: {cita.id}")
+                cita.delete()
+                logger.info("Cita eliminada exitosamente de la base de datos")
+            
+            logger.info("=== FIN - Cita eliminada exitosamente por ID (desde JSON) ===")
+            return Response({
+                'message': 'Cita eliminada exitosamente',
+                'cita_eliminada': cita_info
+            })
+                
+        except Cita.DoesNotExist:
+            logger.error(f"Cita no encontrada con ID: {cita_id}")
+            return Response({
+                'error': 'Cita no encontrada'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error eliminando cita por ID: {str(e)}")
+            return Response({
+                'error': 'Error interno del servidor',
+                'detalles': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

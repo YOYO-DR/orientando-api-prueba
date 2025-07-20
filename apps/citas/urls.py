@@ -5,9 +5,7 @@ from .views import (
     ProfesionalViewSet,
     ClienteViewSet,
     ProductoViewSet,
-    HistorialEstadoCitaViewSet,
-    CitaViewSet,
-    ProductoProfesionalViewSet
+    CitaViewSet
 )
 
 router = DefaultRouter()
@@ -17,9 +15,7 @@ router.register(r'estados-chat', EstadoChatViewSet)
 router.register(r'profesionales', ProfesionalViewSet)
 router.register(r'clientes', ClienteViewSet)
 router.register(r'productos', ProductoViewSet)
-router.register(r'historial-estados', HistorialEstadoCitaViewSet)
 router.register(r'citas', CitaViewSet)
-router.register(r'producto-profesional', ProductoProfesionalViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
