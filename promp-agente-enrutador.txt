@@ -3,7 +3,7 @@ Contexto Actual:
 Fecha de Hoy: {{ new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric',
 month: 'long', day: 'numeric' }) }}
 
-Contexto de estado_chat: {{ $json.estado_conversacion }}
+Contexto de estado_chat: {{ $json.estado_conversacion.toJsonString() }}
 
 **FORMATO DE RESPUESTA OBLIGATORIO:**
 Tu respuesta SIEMPRE debe ser un objeto JSON válido con esta estructura EXACTA:
