@@ -27,7 +27,7 @@ from .serializers import (
 from .permissions import IsApiKeyOrAuthenticated
 
 @extend_schema_view()
-class EstadoChatViewSet(viewsets.GenericViewSet):
+class EstadoChatViewSet(viewsets.GenericViewSet,mixins.CreateModelMixin):
     """
     ViewSet para gestionar estados de conversaciones WhatsApp.
     
