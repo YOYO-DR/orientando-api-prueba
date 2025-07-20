@@ -196,6 +196,103 @@ class ProfesionalViewSet(viewsets.ModelViewSet):
         serializer = ProductoListSerializer(productos, many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        description="Buscar profesional por ID de usuario (enviado en JSON)",
+        responses={200: ProfesionalSerializer}
+    )
+    @action(detail=False, methods=['post'], url_path='por-id')
+    def por_id(self, request):
+        """
+        Buscar profesional por ID de usuario enviado en el JSON
+        
+        Este endpoint permite buscar un profesional usando el ID del usuario
+        enviado en el cuerpo de la petición, no en la URL.
+        
+        URL FIJA: /api/profesionales/por-id/
+        
+        Estructura esperada del JSON:
+        {
+            "profesional_id": 456
+        }
+        
+        Respuesta exitosa:
+        {
+            "profesional_id": 456,
+            "nombres": "Dr. Juan Carlos",
+            "apellidos": "Pérez García",
+            "tipo_documento": "CC",
+            "numero_documento": "12345678",
+            "email": "dr.juan@email.com",
+            "celular": "3009876543",
+            "tipo": "Profesional",
+            "numero_whatsapp": "573001234567",
+            "cargo": "Psicólogo Clínico"
+        }
+        """
+        logger.info("=== INICIO - Buscando profesional por ID de usuario (desde JSON) ===")
+        
+        data = request.data
+        profesional_id = data.get('profesional_id')  # Este es realmente el usuario_id
+        
+        logger.info(f"Datos recibidos: {data}")
+        logger.info(f"Profesional ID (usuario_id) extraído del JSON: {profesional_id}")
+        
+        if not profesional_id:
+            return Response({
+                'error': 'profesional_id es requerido en el JSON'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Buscar el usuario (profesional_id es realmente el usuario_id)
+            usuario = Usuario.objects.get(id=profesional_id)
+            logger.info(f"Usuario encontrado - ID: {usuario.id}, Tipo: {usuario.tipo}")
+            
+            # Verificar que el usuario sea de tipo PROFESIONAL
+            if usuario.tipo != TipoUsuarioEnum.PROFESIONAL:
+                logger.warning(f"Tipo de usuario no válido: {usuario.tipo}")
+                return Response({
+                    'error': f'Solo se pueden consultar usuarios de tipo PROFESIONAL. Tipo actual: {usuario.tipo}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Buscar el profesional relacionado
+            try:
+                profesional = Profesional.objects.select_related('usuario').get(usuario=usuario)
+                logger.info(f"Profesional encontrado - ID: {profesional.id}")
+            except Profesional.DoesNotExist:
+                logger.error(f"No se encontró profesional para usuario ID: {profesional_id}")
+                return Response({
+                    'error': 'No se encontró registro de profesional para este usuario'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Construir respuesta en formato flat (profesional_id = usuario.id)
+            response_data = {
+                'profesional_id': usuario.id,  # Retornar el ID del usuario como profesional_id
+                'nombres': usuario.nombres,
+                'apellidos': usuario.apellidos,
+                'tipo_documento': usuario.tipo_documento,
+                'numero_documento': usuario.numero_documento,
+                'email': usuario.email,
+                'celular': usuario.celular,
+                'tipo': usuario.tipo,
+                'numero_whatsapp': profesional.numero_whatsapp,
+                'cargo': profesional.cargo
+            }
+            
+            logger.info("=== FIN - Profesional encontrado y retornado en formato flat ===")
+            return Response(response_data)
+            
+        except Usuario.DoesNotExist:
+            logger.error(f"Usuario no encontrado con ID: {profesional_id}")
+            return Response({
+                'error': 'Usuario no encontrado'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error buscando profesional por ID de usuario: {str(e)}")
+            return Response({
+                'error': 'Error interno del servidor', 
+                'detalles': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @extend_schema_view(
     list=extend_schema(description="Listar todos los clientes"),

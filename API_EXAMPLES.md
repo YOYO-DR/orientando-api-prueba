@@ -248,6 +248,44 @@ const citaActualizadaPorJson = await apiRequest('/citas/actualizar-por-id/', {
 });
 
 // Respuesta de actualización exitosa
+console.log(citaActualizadaPorJson);
+// {
+//   "message": "Cita actualizada exitosamente",
+//   "data": {
+//     "id": 123,
+//     "cliente_id": 456,
+//     "profesional_asignado_id": 789,
+//     "producto_id": 10,
+//     "fecha_hora_inicio": "25/12/2024 14:30",
+//     "fecha_hora_fin": "25/12/2024 15:30",
+//     "observaciones": "Cita reprogramada por WhatsApp",
+//     "google_calendar_event_id": "evento_calendar_123",
+//     "google_calendar_url_event": "https://calendar.google.com/calendar/event?eid=abcd1234567890"
+//   }
+// }
+
+// ✨ NUEVO: Buscar profesional por ID de usuario en JSON (recomendado para bots)
+const profesional = await apiRequest('/profesionales/por-id/', {
+    method: 'POST',
+    body: JSON.stringify({
+        profesional_id: 456  // ID del usuario (tipo PROFESIONAL) a buscar
+    })
+});
+
+// Respuesta de búsqueda exitosa
+console.log(profesional);
+// {
+//   "profesional_id": 456,
+//   "nombres": "Dr. Juan Carlos",
+//   "apellidos": "Pérez García",
+//   "tipo_documento": "CC",
+//   "numero_documento": "12345678",
+//   "email": "dr.juan@email.com",
+//   "celular": "3009876543",
+//   "tipo": "Profesional",
+//   "numero_whatsapp": "573001234567",
+//   "cargo": "Psicólogo Clínico"
+// }
 {
     "message": "Cita actualizada exitosamente",
     "cita": {
@@ -642,6 +680,12 @@ curl -X PATCH "https://tu-api.com/api/citas/actualizar-por-id/" \
 # Obtener estadísticas de citas
 curl -X GET "https://tu-api.com/api/citas/estadisticas/" \
   -H "X-API-Key: tu-api-key-aqui"
+
+# ✨ NUEVO: Buscar profesional por ID de usuario en JSON (recomendado para bots)
+curl -X POST "https://tu-api.com/api/profesionales/por-id/" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: tu-api-key-aqui" \
+  -d '{"profesional_id": 456}'
 ```
 
 ## 📊 Endpoints Disponibles
@@ -664,6 +708,7 @@ curl -X GET "https://tu-api.com/api/citas/estadisticas/" \
 - `PATCH /api/clientes/actualizar-por-usuario/` - Actualizar cliente por ID de usuario
 - `GET /api/clientes/por-documento/` - Buscar cliente por número de documento
 - `GET /api/profesionales/` - Listar profesionales
+- ✨ `POST /api/profesionales/por-id/` - **Buscar profesional por ID de usuario en JSON** (recomendado para bots)
 - `GET /api/productos/` - Listar productos
 - `POST /api/productos/obtener-por-id/` - Obtener producto por ID en JSON
 - `GET /api/api-keys/` - Gestionar API Keys (requiere autenticación admin)
