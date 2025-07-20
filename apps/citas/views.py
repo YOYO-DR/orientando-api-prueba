@@ -976,17 +976,17 @@ class ProductoViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @extend_schema(
-        description="Obtener producto por ID (enviado en JSON)",
+        description="Consultar producto por ID con profesionales (enviado en JSON)",
         request=ProductoSerializer,
         responses={200: ProductoSerializer}
     )
     @action(detail=False, methods=['post'], url_path='obtener-por-id')
     def obtener_por_id(self, request):
         """
-        Obtener producto específico usando ID enviado en el JSON
+        Consultar producto específico con profesionales usando ID enviado en el JSON
         
-        Este endpoint permite al bot obtener un producto usando el ID
-        enviado en el cuerpo de la petición, no en la URL.
+        Este endpoint permite al bot obtener un producto completo con su lista
+        de profesionales relacionados usando el ID enviado en el cuerpo de la petición.
         
         URL FIJA: /api/productos/obtener-por-id/
         
@@ -994,8 +994,26 @@ class ProductoViewSet(viewsets.ModelViewSet):
         {
             "producto_id": 45
         }
+        
+        Respuesta exitosa:
+        {
+            "id": 45,
+            "nombre": "Consulta General",
+            "descripcion": "Consulta psicológica general",
+            "es_agendable_por_bot": true,
+            "duracion_minutos": 50,
+            "profesionales": [
+                {
+                    "id": 2,
+                    "nombres": "Dr. Juan",
+                    "apellidos": "Pérez",
+                    "cargo": "Psicólogo Clínico",
+                    "numero_whatsapp": "573001234567"
+                }
+            ]
+        }
         """
-        logger.info("=== INICIO - Obteniendo producto por ID (desde JSON) ===")
+        logger.info("=== INICIO - Consultando producto por ID con profesionales (desde JSON) ===")
         
         data = request.data
         producto_id = data.get('producto_id')
@@ -1009,17 +1027,21 @@ class ProductoViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            # Buscar el producto con profesionales incluidos
+            # Buscar el producto con optimización para profesionales
             producto = Producto.objects.prefetch_related(
-                'productoprofesional_set__profesional__usuario'
+                'productoprofesional_set__profesional'
             ).get(id=producto_id)
             
             logger.info(f"Producto encontrado - ID: {producto.id}, Nombre: {producto.nombre}")
             
+            # Usar ProductoSerializer que incluye profesionales
             serializer = ProductoSerializer(producto)
+            response_data = serializer.data
             
+            logger.info(f"Profesionales incluidos: {len(response_data.get('profesionales', []))}")
             logger.info("=== FIN - Producto encontrado y retornado con profesionales ===")
-            return Response(serializer.data)
+            
+            return Response(response_data)
             
         except Producto.DoesNotExist:
             logger.error(f"Producto no encontrado con ID: {producto_id}")
@@ -1027,7 +1049,7 @@ class ProductoViewSet(viewsets.ModelViewSet):
                 'error': 'Producto no encontrado'
             }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"Error obteniendo producto por ID: {str(e)}")
+            logger.error(f"Error consultando producto por ID: {str(e)}")
             return Response({
                 'error': 'Error interno del servidor',
                 'detalles': str(e)
