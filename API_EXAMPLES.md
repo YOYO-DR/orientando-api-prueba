@@ -223,13 +223,48 @@ const nuevaCita = await apiRequest('/citas/', {
 // Obtener cita específica
 const cita = await apiRequest('/citas/1/');
 
-// Actualizar cita
+// Actualizar cita por ID en URL (método tradicional)
 const citaActualizada = await apiRequest('/citas/1/', {
     method: 'PATCH',
     body: JSON.stringify({
         observaciones: 'Cita confirmada por el cliente'
     })
 });
+
+// ✨ NUEVO: Actualizar cita por ID en JSON (recomendado para bots)
+const citaActualizadaPorJson = await apiRequest('/citas/actualizar-por-id/', {
+    method: 'PATCH',  // o 'PUT' para actualización completa
+    body: JSON.stringify({
+        cita_id: 123,  // ID de la cita a actualizar
+        cliente_id: 456,
+        profesional_asignado_id: 789,
+        producto_id: 10,
+        fecha_hora_inicio: "25/12/2024 14:30",
+        fecha_hora_fin: "25/12/2024 15:30",
+        observaciones: "Cita reprogramada por WhatsApp",
+        google_calendar_event_id: "evento_calendar_123",
+        google_calendar_url_event: "https://calendar.google.com/calendar/event?eid=abcd1234567890"
+    })
+});
+
+// Respuesta de actualización exitosa
+{
+    "message": "Cita actualizada exitosamente",
+    "cita": {
+        "cita_id": 123,
+        "cliente_id": 456,
+        "cliente_nombre": "Juan Carlos",
+        "cliente_apellidos": "Pérez García",
+        "producto_nombre": "Consulta Psicológica",
+        "profesional_id": 789,
+        "profesional_nombre": "Dr. María López",
+        "fecha_hora_inicio": "25/12/2024 14:30",
+        "fecha_hora_fin": "25/12/2024 15:30",
+        "estado_cita": "AGENDADO",
+        "google_calendar_event_id": "evento_calendar_123",
+        "observaciones": "Cita reprogramada por WhatsApp"
+    }
+}
 ```
 
 ### **React con Axios**
@@ -583,11 +618,26 @@ curl -X POST "https://tu-api.com/api/citas/" \
 curl -X GET "https://tu-api.com/api/citas/1/" \
   -H "X-API-Key: tu-api-key-aqui"
 
-# Actualizar cita
+# Actualizar cita (método tradicional con ID en URL)
 curl -X PATCH "https://tu-api.com/api/citas/1/" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: tu-api-key-aqui" \
   -d '{"observaciones": "Cita confirmada"}'
+
+# ✨ NUEVO: Actualizar cita por ID en JSON (recomendado para bots)
+curl -X PATCH "https://tu-api.com/api/citas/actualizar-por-id/" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: tu-api-key-aqui" \
+  -d '{
+    "cita_id": 123,
+    "cliente_id": 456,
+    "profesional_asignado_id": 789,
+    "producto_id": 10,
+    "fecha_hora_inicio": "25/12/2024 14:30",
+    "fecha_hora_fin": "25/12/2024 15:30",
+    "observaciones": "Cita reprogramada desde WhatsApp",
+    "google_calendar_url_event": "https://calendar.google.com/calendar/event?eid=abcd1234567890"
+  }'
 
 # Obtener estadísticas de citas
 curl -X GET "https://tu-api.com/api/citas/estadisticas/" \
@@ -596,15 +646,26 @@ curl -X GET "https://tu-api.com/api/citas/estadisticas/" \
 
 ## 📊 Endpoints Disponibles
 
+### **Citas**
 - `GET /api/citas/` - Listar citas
 - `POST /api/citas/` - Crear cita
 - `GET /api/citas/{id}/` - Obtener cita específica
-- `PUT/PATCH /api/citas/{id}/` - Actualizar cita
+- `PUT/PATCH /api/citas/{id}/` - Actualizar cita (método tradicional)
+- ✨ `PUT/PATCH /api/citas/actualizar-por-id/` - **Actualizar cita por ID en JSON** (recomendado para bots)
 - `DELETE /api/citas/{id}/` - Eliminar cita
+- `POST /api/citas/{id}/cambiar-estado/` - Cambiar estado de cita
+- `GET /api/citas/{id}/historial-estados/` - Obtener historial de estados
+- `GET /api/citas/por-fecha/` - Filtrar citas por rango de fechas
+- `GET /api/citas/hoy/` - Obtener citas de hoy
+
+### **Otros Endpoints**
 - `GET /api/usuarios/` - Listar usuarios
 - `GET /api/clientes/` - Listar clientes
+- `PATCH /api/clientes/actualizar-por-usuario/` - Actualizar cliente por ID de usuario
+- `GET /api/clientes/por-documento/` - Buscar cliente por número de documento
 - `GET /api/profesionales/` - Listar profesionales
 - `GET /api/productos/` - Listar productos
+- `POST /api/productos/obtener-por-id/` - Obtener producto por ID en JSON
 - `GET /api/api-keys/` - Gestionar API Keys (requiere autenticación admin)
 
 ¡Tu API está lista para ser consumida desde cualquier plataforma! 🚀

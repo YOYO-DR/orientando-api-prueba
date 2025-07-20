@@ -1239,6 +1239,116 @@ class CitaViewSet(viewsets.ModelViewSet):
             'historial': serializer.data
         })
 
+    @extend_schema(
+        description="Actualizar cita por ID (enviado en JSON)",
+        request=CitaSerializer,
+        responses={200: CitaSerializer}
+    )
+    @action(detail=False, methods=['put', 'patch'], url_path='actualizar-por-id')
+    def actualizar_por_id(self, request):
+        """
+        Actualizar cita utilizando el ID de la cita enviado en el JSON
+        
+        Este endpoint permite al bot actualizar una cita usando el ID de la cita
+        enviado en el cuerpo de la petición, no en la URL.
+        
+        URL FIJA: /api/citas/actualizar-por-id/
+        
+        Estructura esperada del JSON (todos los campos opcionales excepto cita_id):
+        {
+            "cita_id": 123,
+            "cliente_id": 456,
+            "profesional_asignado_id": 789,
+            "producto_id": 10,
+            "fecha_hora_inicio": "25/12/2024 14:30",
+            "fecha_hora_fin": "25/12/2024 15:30",
+            "observaciones": "Cita reprogramada",
+            "google_calendar_event_id": "evento_123",
+            "google_calendar_url_event": "https://calendar.google.com/calendar/event?eid=abcd1234567890"
+        }
+        
+        Validaciones automáticas:
+        - cliente_id debe ser de tipo CLIENTE y tener perfil Cliente
+        - profesional_asignado_id debe ser de tipo PROFESIONAL y tener perfil Profesional  
+        - producto_id debe existir
+        - Debe existir relación ProductoProfesional entre profesional y producto
+        - Fechas en formato dd/mm/aaaa hh:mm
+        """
+        logger.info("=== INICIO - Actualizando cita por ID (desde JSON) ===")
+        
+        data = request.data
+        cita_id = data.get('cita_id')
+        
+        logger.info(f"Datos recibidos: {data}")
+        logger.info(f"Cita ID extraído del JSON: {cita_id}")
+        
+        if not cita_id:
+            return Response({
+                'error': 'cita_id es requerido en el JSON'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Buscar la cita
+            cita = Cita.objects.select_related(
+                'cliente', 'producto', 'profesional_asignado', 'estado_actual'
+            ).get(id=cita_id)
+            
+            logger.info(f"Cita encontrada - ID: {cita.id}")
+            logger.info(f"Cliente actual: {cita.cliente.nombres} {cita.cliente.apellidos}")
+            logger.info(f"Producto actual: {cita.producto.nombre}")
+            if cita.profesional_asignado:
+                logger.info(f"Profesional actual: {cita.profesional_asignado.nombres} {cita.profesional_asignado.apellidos}")
+            
+            from django.db import transaction
+            
+            with transaction.atomic():
+                # Excluir cita_id de los datos a procesar (no es un campo del modelo)
+                update_data = {key: value for key, value in data.items() if key != 'cita_id'}
+                
+                logger.info(f"Datos para actualización: {update_data}")
+                
+                # Usar el serializador con validaciones completas
+                partial = request.method == 'PATCH'
+                serializer = CitaSerializer(
+                    cita, 
+                    data=update_data, 
+                    partial=partial
+                )
+                
+                if not serializer.is_valid():
+                    logger.error(f"Errores de validación: {serializer.errors}")
+                    return Response({
+                        'error': 'Datos de cita inválidos',
+                        'detalles': serializer.errors
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Guardar la cita actualizada
+                cita_actualizada = serializer.save()
+                
+                logger.info(f"Cita actualizada exitosamente - ID: {cita_actualizada.id}")
+                logger.info(f"Campos actualizados: {list(update_data.keys())}")
+                
+                # Retornar la cita actualizada con el formato mejorado
+                response_serializer = CitaSerializer(cita_actualizada)
+                
+                logger.info("=== FIN - Cita actualizada exitosamente por ID (desde JSON) ===")
+                return Response({
+                    'message': 'Cita actualizada exitosamente',
+                    'cita': response_serializer.data
+                })
+                
+        except Cita.DoesNotExist:
+            logger.error(f"Cita no encontrada con ID: {cita_id}")
+            return Response({
+                'error': 'Cita no encontrada'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error actualizando cita por ID: {str(e)}")
+            return Response({
+                'error': 'Error interno del servidor',
+                'detalles': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @extend_schema_view(
     list=extend_schema(description="Listar relaciones producto-profesional"),
