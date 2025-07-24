@@ -21,8 +21,7 @@ from .serializers import (
     ClienteSerializer,
     ProductoSerializer, ProductoListSerializer,
     HistorialEstadoCitaSerializer,
-    CitaSerializer, CitaListSerializer,
-    ProductoProfesionalSerializer
+    CitaSerializer, CitaListSerializer
 )
 from .permissions import IsApiKeyOrAuthenticated
 
@@ -959,38 +958,119 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
         return Response(serializer.data)
 
     @extend_schema(
-        description="Cambiar estado de una cita",
-        request=HistorialEstadoCitaSerializer,
-        responses={200: CitaSerializer}
+        description="Cambiar estado de una cita por ID (enviado en JSON)",
+        request={
+            "application/json": {
+                "example": {
+                    "cita_id": 123,
+                    "estado_cita": "PRIMER_CONFIRMADO",
+                    "observaciones": "Cliente confirmó por WhatsApp"
+                }
+            }
+        },
+        responses={
+            200: {
+                "description": "Estado de cita cambiado exitosamente",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "message": "Estado de cita actualizado exitosamente",
+                            "estado_anterior": "AGENDADO",
+                            "estado_actual": "PRIMER_CONFIRMADO",
+                            "fecha_cambio": "2024-12-25T10:30:00Z",
+                            "cita": {
+                                "id": 123,
+                                "cliente": {
+                                    "id": 456,
+                                    "nombres": "Juan Carlos",
+                                    "apellidos": "Pérez García"
+                                },
+                                "estado_actual": "PRIMER_CONFIRMADO"
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                "description": "Datos inválidos",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "error": "cita_id es requerido en el JSON"
+                        }
+                    }
+                }
+            },
+            404: {
+                "description": "Cita no encontrada",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "error": "Cita no encontrada"
+                        }
+                    }
+                }
+            }
+        }
     )
-    @action(detail=True, methods=['post'])
-    def cambiar_estado(self, request, pk=None):
+    @action(detail=False, methods=['post'], url_path='cambiar-estado-por-id')
+    def cambiar_estado(self, request):
         """
         Cambiar el estado de una cita y registrar automáticamente en historial
         
-        Estructura del JSON esperado:
+        Este endpoint permite al bot cambiar el estado de una cita usando el ID de la cita
+        enviado en el cuerpo de la petición, no en la URL.
+        
+        URL FIJA: /api/citas/cambiar-estado-por-id/
+        
+        Estructura esperada del JSON:
         {
+            "cita_id": 123,
             "estado_cita": "PRIMER_CONFIRMADO",
             "observaciones": "Cliente confirmó por WhatsApp"  // opcional
         }
+        
+        Estados válidos:
+        - Agendado
+        - Notificado Profesional
+        - Pendiente Primer Confirmación 24 Horas
+        - Primer Confirmado
+        - Pendiente Segunda Confirmación 2 Horas
+        - Segundo Confirmado
+        - Finalizado
         """
-        logger.info("=== INICIO - Cambio de estado de cita ===")
+        logger.info("=== INICIO - Cambio de estado de cita por ID (desde JSON) ===")
         
-        cita = self.get_object()
-        nuevo_estado = request.data.get('estado_cita')
-        observaciones = request.data.get('observaciones')
+        data = request.data
+        cita_id = data.get('cita_id')
+        nuevo_estado = data.get('estado_cita')
+        observaciones = data.get('observaciones')
         
-        logger.info(f"Cita ID: {cita.id}")
-        logger.info(f"Estado actual: {cita.get_estado_actual_nombre()}")
+        logger.info(f"Datos recibidos: {data}")
+        logger.info(f"Cita ID extraído del JSON: {cita_id}")
         logger.info(f"Nuevo estado solicitado: {nuevo_estado}")
         logger.info(f"Observaciones: {observaciones}")
         
+        if not cita_id:
+            return Response({
+                'error': 'cita_id es requerido en el JSON'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         if not nuevo_estado:
             return Response({
-                'error': 'El campo estado_cita es requerido'
+                'error': 'estado_cita es requerido en el JSON'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
+            # Buscar la cita
+            cita = Cita.objects.select_related(
+                'cliente', 'producto', 'profesional_asignado', 'estado_actual'
+            ).get(id=cita_id)
+            
+            logger.info(f"Cita encontrada - ID: {cita.id}")
+            logger.info(f"Cliente: {cita.cliente.nombres} {cita.cliente.apellidos}")
+            logger.info(f"Estado actual: {cita.get_estado_actual_nombre()}")
+            
             # Usar el método del modelo para cambiar estado
             historial_creado = cita.cambiar_estado(
                 nuevo_estado=nuevo_estado,
@@ -1001,7 +1081,7 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
             logger.info(f"Historial creado - ID: {historial_creado.id}")
             
             # Retornar la cita actualizada
-            serializer = self.get_serializer(cita)
+            serializer = CitaSerializer(cita)
             
             response_data = {
                 'message': 'Estado de cita actualizado exitosamente',
@@ -1013,16 +1093,21 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
                 'cita': serializer.data
             }
             
-            logger.info("=== FIN - Estado de cita actualizado exitosamente ===")
+            logger.info("=== FIN - Estado de cita actualizado exitosamente por ID (desde JSON) ===")
             return Response(response_data)
             
+        except Cita.DoesNotExist:
+            logger.error(f"Cita no encontrada con ID: {cita_id}")
+            return Response({
+                'error': 'Cita no encontrada'
+            }, status=status.HTTP_404_NOT_FOUND)
         except ValueError as e:
             logger.error(f"Error de validación: {str(e)}")
             return Response({
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            logger.error(f"Error cambiando estado de cita: {str(e)}")
+            logger.error(f"Error cambiando estado de cita por ID: {str(e)}")
             return Response({
                 'error': 'Error interno del servidor',
                 'detalles': str(e)
