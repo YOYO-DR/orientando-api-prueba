@@ -963,6 +963,7 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
             "application/json": {
                 "example": {
                     "cita_id": 123,
+                    "cliente_id": 456,
                     "estado_cita": "PRIMER_CONFIRMADO",
                     "observaciones": "Cliente confirmó por WhatsApp"
                 }
@@ -996,7 +997,7 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
                 "content": {
                     "application/json": {
                         "example": {
-                            "error": "cita_id es requerido en el JSON"
+                            "error": "cita_id y cliente_id son requeridos en el JSON"
                         }
                     }
                 }
@@ -1026,6 +1027,7 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
         Estructura esperada del JSON:
         {
             "cita_id": 123,
+            "cliente_id": 456,
             "estado_cita": "PRIMER_CONFIRMADO",
             "observaciones": "Cliente confirmó por WhatsApp"  // opcional
         }
@@ -1043,11 +1045,13 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
         
         data = request.data
         cita_id = data.get('cita_id')
+        cliente_id = data.get('cliente_id')
         nuevo_estado = data.get('estado_cita')
         observaciones = data.get('observaciones')
         
         logger.info(f"Datos recibidos: {data}")
         logger.info(f"Cita ID extraído del JSON: {cita_id}")
+        logger.info(f"Cliente ID extraído del JSON: {cliente_id}")
         logger.info(f"Nuevo estado solicitado: {nuevo_estado}")
         logger.info(f"Observaciones: {observaciones}")
         
@@ -1056,19 +1060,25 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
                 'error': 'cita_id es requerido en el JSON'
             }, status=status.HTTP_400_BAD_REQUEST)
         
+        if not cliente_id:
+            return Response({
+                'error': 'cliente_id es requerido en el JSON'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         if not nuevo_estado:
             return Response({
                 'error': 'estado_cita es requerido en el JSON'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            # Buscar la cita
+            # Buscar la cita con validación de que pertenezca al cliente
             cita = Cita.objects.select_related(
                 'cliente', 'producto', 'profesional_asignado', 'estado_actual'
-            ).get(id=cita_id)
+            ).get(id=cita_id, cliente_id=cliente_id)
             
             logger.info(f"Cita encontrada - ID: {cita.id}")
             logger.info(f"Cliente: {cita.cliente.nombres} {cita.cliente.apellidos}")
+            logger.info(f"Cliente ID verificado: {cita.cliente.id} == {cliente_id}")
             logger.info(f"Estado actual: {cita.get_estado_actual_nombre()}")
             
             # Usar el método del modelo para cambiar estado
@@ -1097,9 +1107,9 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
             return Response(response_data)
             
         except Cita.DoesNotExist:
-            logger.error(f"Cita no encontrada con ID: {cita_id}")
+            logger.error(f"Cita no encontrada con ID: {cita_id} para cliente ID: {cliente_id}")
             return Response({
-                'error': 'Cita no encontrada'
+                'error': 'Cita no encontrada o no pertenece al cliente especificado'
             }, status=status.HTTP_404_NOT_FOUND)
         except ValueError as e:
             logger.error(f"Error de validación: {str(e)}")
