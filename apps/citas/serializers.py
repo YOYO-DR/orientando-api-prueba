@@ -1,6 +1,8 @@
 from rest_framework import serializers
 import logging
 from datetime import datetime
+from django.utils import timezone
+from zoneinfo import ZoneInfo
 from .models import (
     Usuario, EstadoChat, Profesional, Cliente, Producto, 
     HistorialEstadoCita, Cita, ProductoProfesional,
@@ -201,11 +203,17 @@ class CitaSerializer(serializers.ModelSerializer):
         data['cliente_id'] = instance.cliente.id if instance.cliente else None
         data['profesional_id'] = instance.profesional_asignado.id if instance.profesional_asignado else None
         
-        # Formatear fechas en la respuesta (dd/mm/aaaa hh:mm)
+        # Formatear fechas en la respuesta (dd/mm/aaaa hh:mm) - convertir de UTC a Colombia
         if instance.fecha_hora_inicio:
-            data['fecha_hora_inicio'] = instance.fecha_hora_inicio.strftime('%d/%m/%Y %H:%M')
+            # Convertir de UTC a zona horaria de Colombia
+            zona_colombia = ZoneInfo('America/Bogota')
+            fecha_colombia = instance.fecha_hora_inicio.astimezone(zona_colombia)
+            data['fecha_hora_inicio'] = fecha_colombia.strftime('%d/%m/%Y %H:%M')
         if instance.fecha_hora_fin:
-            data['fecha_hora_fin'] = instance.fecha_hora_fin.strftime('%d/%m/%Y %H:%M')
+            # Convertir de UTC a zona horaria de Colombia
+            zona_colombia = ZoneInfo('America/Bogota')
+            fecha_colombia = instance.fecha_hora_fin.astimezone(zona_colombia)
+            data['fecha_hora_fin'] = fecha_colombia.strftime('%d/%m/%Y %H:%M')
             
         return data
 
@@ -215,9 +223,19 @@ class CitaSerializer(serializers.ModelSerializer):
         
         try:
             # Convertir desde formato dd/mm/aaaa hh:mm
-            fecha_convertida = datetime.strptime(value, '%d/%m/%Y %H:%M')
-            logger.info(f"Fecha convertida exitosamente: {fecha_convertida}")
-            return fecha_convertida
+            fecha_naive = datetime.strptime(value, '%d/%m/%Y %H:%M')
+            logger.info(f"Fecha naive convertida: {fecha_naive}")
+            
+            # Convertir a timezone aware usando la zona horaria de Colombia
+            zona_colombia = ZoneInfo('America/Bogota')
+            fecha_con_timezone = fecha_naive.replace(tzinfo=zona_colombia)
+            logger.info(f"Fecha con timezone Colombia: {fecha_con_timezone}")
+            
+            # Convertir a UTC para almacenamiento (Django lo hace automáticamente)
+            fecha_utc = fecha_con_timezone.astimezone(timezone.utc)
+            logger.info(f"Fecha UTC para DB: {fecha_utc}")
+            
+            return fecha_con_timezone  # Retornamos con timezone local
         except ValueError as e:
             logger.error(f"Error de validación de fecha: {str(e)}")
             raise serializers.ValidationError(
@@ -230,9 +248,19 @@ class CitaSerializer(serializers.ModelSerializer):
         
         try:
             # Convertir desde formato dd/mm/aaaa hh:mm
-            fecha_convertida = datetime.strptime(value, '%d/%m/%Y %H:%M')
-            logger.info(f"Fecha convertida exitosamente: {fecha_convertida}")
-            return fecha_convertida
+            fecha_naive = datetime.strptime(value, '%d/%m/%Y %H:%M')
+            logger.info(f"Fecha naive convertida: {fecha_naive}")
+            
+            # Convertir a timezone aware usando la zona horaria de Colombia
+            zona_colombia = ZoneInfo('America/Bogota')
+            fecha_con_timezone = fecha_naive.replace(tzinfo=zona_colombia)
+            logger.info(f"Fecha con timezone Colombia: {fecha_con_timezone}")
+            
+            # Convertir a UTC para almacenamiento (Django lo hace automáticamente)
+            fecha_utc = fecha_con_timezone.astimezone(timezone.utc)
+            logger.info(f"Fecha UTC para DB: {fecha_utc}")
+            
+            return fecha_con_timezone  # Retornamos con timezone local
         except ValueError as e:
             logger.error(f"Error de validación de fecha: {str(e)}")
             raise serializers.ValidationError(
@@ -515,6 +543,22 @@ class CitaListSerializer(serializers.ModelSerializer):
             'profesional_id', 'profesional_nombre', 'estado_cita',
             'google_calendar_event_id'
         ]
+
+    def to_representation(self, instance):
+        """Personalizar la representación de salida para fechas en zona horaria local"""
+        data = super().to_representation(instance)
+        
+        # Formatear fechas en la respuesta (dd/mm/aaaa hh:mm) - convertir de UTC a Colombia
+        if instance.fecha_hora_inicio:
+            zona_colombia = ZoneInfo('America/Bogota')
+            fecha_colombia = instance.fecha_hora_inicio.astimezone(zona_colombia)
+            data['fecha_hora_inicio'] = fecha_colombia.strftime('%d/%m/%Y %H:%M')
+        if instance.fecha_hora_fin:
+            zona_colombia = ZoneInfo('America/Bogota')
+            fecha_colombia = instance.fecha_hora_fin.astimezone(zona_colombia)
+            data['fecha_hora_fin'] = fecha_colombia.strftime('%d/%m/%Y %H:%M')
+            
+        return data
 
     def to_representation(self, instance):
         """Personalizar la representación de salida con fechas en formato dd/mm/aaaa hh:mm"""
