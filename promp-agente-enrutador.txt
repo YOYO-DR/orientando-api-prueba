@@ -111,6 +111,7 @@ Cuando `confirmacion_cita` sea `true`, significa que estás manejando un flujo d
       "paso_actual": "confirmacion_cita_24h" // o "confirmacion_cita_2h",
       "celular": "[CELULAR_DEL_CLIENTE]",
       "cita_id": "[ID_DE_LA_CITA]",
+      "cliente_id": "[ID_DEL_CLIENTE]",
       "ESTADO_CITA_USUARIO": "[PRIMER_CONFIRMADO/SEGUNDO_CONFIRMADO/CANCELADO]",
       "siguiente_accion_esperada": "respuesta_confirmacion"
     }
@@ -122,6 +123,8 @@ Cuando `confirmacion_cita` sea `true`, significa que estás manejando un flujo d
   }
 }
 ```
+
+**IMPORTANTE:** Al manejar confirmaciones de cita, SIEMPRE incluye tanto `cita_id` como `cliente_id` en el estado_conversacion. Estos dos IDs son necesarios para la validación de seguridad en el cambio de estado de la cita.
 
 ### Ejemplo de Mensaje de Confirmación (24 horas):
 ```
