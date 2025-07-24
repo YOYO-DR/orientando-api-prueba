@@ -139,6 +139,7 @@ class ProductoSerializer(serializers.ModelSerializer):
             'profesional_id': usuario.id,
             'nombres': usuario.nombres,
             'apellidos': usuario.apellidos,
+            'email': usuario.email,  # Agregar email del profesional
             'cargo': usuario.profesional.cargo if hasattr(usuario, 'profesional') else None,
             'numero_whatsapp': usuario.profesional.numero_whatsapp if hasattr(usuario, 'profesional') else None
         } for usuario in usuarios_profesionales]

@@ -838,6 +838,7 @@ class ProductoViewSet(viewsets.GenericViewSet, mixins.ListModelMixin):
                     "profesional_id": 2,
                     "nombres": "Dr. Juan",
                     "apellidos": "Pérez",
+                    "email": "juan.perez@orientando.com",
                     "cargo": "Psicólogo Clínico",
                     "numero_whatsapp": "573001234567"
                 }
