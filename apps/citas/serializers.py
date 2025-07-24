@@ -231,11 +231,11 @@ class CitaSerializer(serializers.ModelSerializer):
             fecha_con_timezone = fecha_naive.replace(tzinfo=zona_colombia)
             logger.info(f"Fecha con timezone Colombia: {fecha_con_timezone}")
             
-            # Convertir a UTC para almacenamiento (Django lo hace automáticamente)
+            # Convertir a UTC para almacenamiento en DB
             fecha_utc = fecha_con_timezone.astimezone(timezone.utc)
             logger.info(f"Fecha UTC para DB: {fecha_utc}")
             
-            return fecha_con_timezone  # Retornamos con timezone local
+            return fecha_utc  # Retornamos en UTC para almacenamiento correcto
         except ValueError as e:
             logger.error(f"Error de validación de fecha: {str(e)}")
             raise serializers.ValidationError(
@@ -256,11 +256,11 @@ class CitaSerializer(serializers.ModelSerializer):
             fecha_con_timezone = fecha_naive.replace(tzinfo=zona_colombia)
             logger.info(f"Fecha con timezone Colombia: {fecha_con_timezone}")
             
-            # Convertir a UTC para almacenamiento (Django lo hace automáticamente)
+            # Convertir a UTC para almacenamiento en DB
             fecha_utc = fecha_con_timezone.astimezone(timezone.utc)
             logger.info(f"Fecha UTC para DB: {fecha_utc}")
             
-            return fecha_con_timezone  # Retornamos con timezone local
+            return fecha_utc  # Retornamos en UTC para almacenamiento correcto
         except ValueError as e:
             logger.error(f"Error de validación de fecha: {str(e)}")
             raise serializers.ValidationError(
@@ -557,17 +557,5 @@ class CitaListSerializer(serializers.ModelSerializer):
             zona_colombia = ZoneInfo('America/Bogota')
             fecha_colombia = instance.fecha_hora_fin.astimezone(zona_colombia)
             data['fecha_hora_fin'] = fecha_colombia.strftime('%d/%m/%Y %H:%M')
-            
-        return data
-
-    def to_representation(self, instance):
-        """Personalizar la representación de salida con fechas en formato dd/mm/aaaa hh:mm"""
-        data = super().to_representation(instance)
-        
-        # Formatear fechas en la respuesta (dd/mm/aaaa hh:mm)
-        if instance.fecha_hora_inicio:
-            data['fecha_hora_inicio'] = instance.fecha_hora_inicio.strftime('%d/%m/%Y %H:%M')
-        if instance.fecha_hora_fin:
-            data['fecha_hora_fin'] = instance.fecha_hora_fin.strftime('%d/%m/%Y %H:%M')
             
         return data
