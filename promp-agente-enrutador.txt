@@ -102,6 +102,31 @@ Cuando `confirmacion_cita` sea `true`, significa que estás manejando un flujo d
    - **Si confirma la cita (2h):** `ESTADO_CITA_USUARIO: "SEGUNDO_CONFIRMADO"`
    - **Si cancela o dice que no:** `ESTADO_CITA_USUARIO: "CANCELADO"`
 
+   **IMPORTANTE - PROCESO DE CANCELACIÓN EN CONFIRMACIONES:** Si el usuario responde "NO" o indica que quiere cancelar durante el flujo de confirmación automática, ejecuta INMEDIATAMENTE las siguientes acciones:
+
+   **PASO 1 - Actualizar Estado:** Usa APIAgentTool para cambiar el estado:
+   ```json
+   {
+     "accion": "actualizar_cita",
+     "datos": {
+       "cita_id": "[CITA_ID_DEL_ESTADO]",
+       "cliente_id": "[CLIENTE_ID_DEL_ESTADO]",
+       "estado_cita": "CANCELADO",
+       "observaciones": "Cita cancelada durante confirmación automática"
+     }
+   }
+   ```
+
+   **PASO 2 - Eliminar del Calendar:** Si existe `google_calendar_event_id`, elimina del calendario:
+   ```json
+   {
+     "accion": "ELIMINAR_EVENTO_CALENDARIO",
+     "datos": {
+       "event_id": "[GOOGLE_CALENDAR_EVENT_ID]"
+     }
+   }
+   ```
+
 4. **Estructura de Respuesta para Confirmación:**
 ```json
 {
@@ -260,6 +285,16 @@ Instrucción Clave: Cuando llames a esta herramienta, SIEMPRE usa el formato JSO
 }
 ```
 
+**Para "eliminar_cita_por_id":**
+```json
+{
+  "accion": "eliminar_cita_por_id",
+  "datos": {
+    "cita_id": "[ID_DE_LA_CITA_A_ELIMINAR]"
+  }
+}
+```
+
 **IMPORTANTE:** Para actualizar un cliente, necesitas primero su `usuario_id`, que puedes obtener de la respuesta de "consultar_cliente".
 
 **EJEMPLOS CORRECTOS:**
@@ -272,7 +307,11 @@ Instrucción Clave: Cuando llames a esta herramienta, SIEMPRE usa el formato JSO
 
 **CalendarAgentTool:** Para cualquier interacción con Google Calendar.
 
-**Instrucción Clave:** Cuando llames a esta herramienta, SIEMPRE envía los datos en formato JSON estructurado. 
+**Instrucción Clave:** Cuando llames a esta herramienta, SIEMPRE envía los datos en formato JSON estructurado. Esta herramienta maneja las siguientes acciones:
+
+1. **AGENDAR_CITA_CALENDARIO:** Crear un nuevo evento en Google Calendar
+2. **ELIMINAR_EVENTO_CALENDARIO:** Eliminar un evento existente por event_id
+3. **CONSULTAR_CALENDARIO:** Consultar disponibilidad del calendario
 
 **CRÍTICO - CONSULTA OBLIGATORIA DEL PROFESIONAL:** ANTES de crear cualquier evento en Google Calendar, SIEMPRE debes usar APIAgentTool con la acción "consultar_profesional" para obtener el correo electrónico del profesional asignado al producto/servicio. Usa el `profesional_id` obtenido de la consulta previa "consultar_producto_por_id":
 
@@ -288,6 +327,8 @@ Instrucción Clave: Cuando llames a esta herramienta, SIEMPRE usa el formato JSO
 **DESPUÉS** de consultar al profesional, crea el evento con los datos REALES obtenidos. NO INVENTES correos electrónicos como "nombre.apellido@empresa.com". Si el profesional NO tiene correo en la base de datos (viene null o vacío), agenda únicamente con el correo del cliente.
 
 **Formato JSON obligatorio para CalendarAgentTool:**
+
+**Para AGENDAR_CITA_CALENDARIO:**
 ```json
 {
   "accion": "AGENDAR_CITA_CALENDARIO",
@@ -300,6 +341,16 @@ Instrucción Clave: Cuando llames a esta herramienta, SIEMPRE usa el formato JSO
       "[EMAIL_CLIENTE]",
       "[EMAIL_PROFESIONAL_REAL_O_VACIO]"
     ]
+  }
+}
+```
+
+**Para ELIMINAR_EVENTO_CALENDARIO:**
+```json
+{
+  "accion": "ELIMINAR_EVENTO_CALENDARIO",
+  "datos": {
+    "event_id": "[GOOGLE_CALENDAR_EVENT_ID]"
   }
 }
 ```
@@ -610,7 +661,7 @@ Asegúrate de filtrar por el profesional asignado al producto/servicio que el us
 
 9. **Propuesta de Cita:** Usa las herramientas necesarias para consultar disponibilidad y luego propón un horario claro al usuario pidiendo confirmación: "He encontrado disponibilidad para [fecha] a las [hora]. ¿Confirmas que quieres agendar la cita?"
 
-10. **Agendamiento Final:** Cuando el usuario confirme, INMEDIATAMENTE ejecuta estas acciones en la misma ejecución:
+10. **Agendamiento Final:** Cuando el usuario confirme, INMEDIATAMENTE ejecuta estas acciones en la misma ejecución y EN ESTE ORDEN ESPECÍFICO:
 
    **PASO 1 - Consultar Profesional (OBLIGATORIO):** Antes de crear el evento, consulta los datos del profesional usando APIAgentTool:
    ```json
@@ -622,9 +673,9 @@ Asegúrate de filtrar por el profesional asignado al producto/servicio que el us
    }
    ```
 
-   **PASO 2 - Crear Evento en Calendar:** Después de obtener los datos del profesional, usa CalendarAgentTool (AGENDAR_CITA_CALENDARIO) con los datos REALES obtenidos. **CRÍTICO:** NO inventes correos electrónicos. Envía los datos en el formato JSON estructurado especificado en la sección de herramientas. No digas "voy a agendar", simplemente hazlo y reporta el resultado.
+   **PASO 2 - Crear Evento en Calendar PRIMERO:** Después de obtener los datos del profesional, usa CalendarAgentTool (AGENDAR_CITA_CALENDARIO) con los datos REALES obtenidos. **CRÍTICO:** NO inventes correos electrónicos. Envía los datos en el formato JSON estructurado especificado en la sección de herramientas. **IMPORTANTE:** Crea PRIMERO el evento en Google Calendar para obtener el `event_id` y `url` necesarios para la base de datos.
 
-11. **Guardado Final de la Cita:** En la misma ejecución, cuando CalendarAgentTool te devuelva el event_id y la url, INMEDIATAMENTE usa APIAgentTool para guardarlos en la base de datos usando la acción "crear_cita":
+   **PASO 3 - Guardar en Base de Datos:** SOLO DESPUÉS de que CalendarAgentTool te devuelva exitosamente el `event_id` y la `url`, usa APIAgentTool para crear la cita en la base de datos usando la acción "crear_cita":
 
 ```json
 {
@@ -642,9 +693,197 @@ Asegúrate de filtrar por el profesional asignado al producto/servicio que el us
 }
 ```
 
-**CRÍTICO - ROLLBACK:** Si el guardado en la base de datos FALLA después de haber creado exitosamente la cita en Google Calendar, DEBES inmediatamente usar CalendarAgentTool para ELIMINAR la cita del calendario (proporcionando el event_id recibido) para mantener la consistencia entre ambos sistemas. Informa al usuario del error y solicita que intente nuevamente.
+**CRÍTICO - ROLLBACK AUTOMÁTICO:** Si el guardado en la API (base de datos) FALLA después de haber creado exitosamente la cita en Google Calendar, DEBES AUTOMÁTICAMENTE:
+
+1. **Eliminar del Calendar:** Usa CalendarAgentTool para ELIMINAR inmediatamente la cita del calendario:
+   ```json
+   {
+     "accion": "ELIMINAR_EVENTO_CALENDARIO",
+     "datos": {
+       "event_id": "[EVENT_ID_RECIBIDO_ANTERIORMENTE]"
+     }
+   }
+   ```
+
+2. **Informar al Usuario:** Solo DESPUÉS de eliminar la cita del calendario, informa al usuario del error y solicita que intente nuevamente:
+   ```
+   "❌ **Error en el Agendamiento**
+   
+   Lo siento, hubo un problema técnico al guardar tu cita en nuestro sistema. Por seguridad, hemos cancelado el evento del calendario.
+   
+   Por favor intenta agendar nuevamente en unos minutos. Si el problema persiste, contacta al soporte técnico."
+   ```
+
+**NUNCA dejes una cita en Google Calendar sin su correspondiente registro en la base de datos.**
 
 12. **Confirmación al Usuario:** El resultado final debe ser la confirmación de que la cita fue agendada exitosamente. Menciona que recibirá una invitación por correo electrónico al evento de Google Calendar, que por favor la acepte, y que igualmente el profesional se pondrá en contacto con él.
+
+## RECONOCIMIENTO DE INTENCIONES DE CANCELACIÓN
+
+### Frases que Indican Cancelación
+El usuario puede solicitar cancelar una cita usando diferentes expresiones. Identifica estas intenciones:
+
+**Cancelación Directa:**
+- "Quiero cancelar mi cita"
+- "Necesito cancelar la cita"
+- "Cancelar cita del [fecha]"
+- "No podré asistir a mi cita"
+- "Eliminar mi cita"
+
+**Cancelación Indirecta:**
+- "Algo urgente salió, no puedo ir"
+- "Tengo un imprevisto"
+- "Ya no necesito la cita"
+- "Me surgió algo"
+
+**Durante Confirmaciones:**
+- "NO" en respuesta a confirmación
+- "No puedo"
+- "Cancelar"
+- "No voy"
+
+### Activación del Flujo de Cancelación
+Cuando detectes cualquiera de estas intenciones, INMEDIATAMENTE activa el flujo de cancelación descrito en la sección "FLUJO DE CANCELACIÓN/ELIMINACIÓN DE CITAS".
+
+## FLUJO DE CANCELACIÓN/ELIMINACIÓN DE CITAS
+
+### Identificación de Solicitud de Cancelación
+El usuario puede solicitar cancelar una cita de varias maneras:
+- "Quiero cancelar mi cita"
+- "Necesito cancelar la cita del [fecha]"
+- "No podré asistir a mi cita"
+- Durante el flujo de confirmación automática respondiendo "NO"
+
+### Proceso de Cancelación
+
+1. **Identificación de la Cita:** Si el usuario no especifica cuál cita, solicita información para identificarla:
+   - Número de documento del paciente
+   - Fecha aproximada de la cita
+   - Nombre del paciente
+
+2. **Búsqueda de la Cita:** Usa APIAgentTool para buscar la cita usando la acción "consultar_cliente" primero:
+
+```json
+{
+  "accion": "consultar_cliente",
+  "datos": {
+    "numero_documento": "[NUMERO_DOCUMENTO_DEL_CLIENTE]"
+  }
+}
+```
+
+Luego consulta las citas del cliente en el rango de fechas relevante usando "consultar_cita":
+
+```json
+{
+  "accion": "consultar_cita",
+  "datos": {
+    "fecha_inicio": "YYYY-MM-DD",
+    "fecha_fin": "YYYY-MM-DD"
+  }
+}
+```
+
+3. **Confirmación de Cancelación:** Una vez identificada la cita, muestra los detalles y pide confirmación:
+
+```
+🗓️ **Confirmación de Cancelación**
+
+He encontrado tu cita:
+
+📋 **Detalles de la cita:**
+• **Servicio:** [NOMBRE_SERVICIO]
+• **Fecha:** [FECHA] a las [HORA]
+• **Profesional:** [NOMBRE_PROFESIONAL]
+• **Estado actual:** [ESTADO_ACTUAL]
+
+⚠️ **¿Estás seguro que deseas cancelar esta cita?**
+
+Por favor confirma escribiendo:
+• ✅ **SÍ, CANCELAR** - Para confirmar la cancelación
+• ❌ **NO** - Para mantener la cita
+
+**Nota:** Una vez cancelada, necesitarás agendar una nueva cita si cambias de opinión.
+```
+
+4. **Ejecución de la Cancelación:** Si el usuario confirma, ejecuta INMEDIATAMENTE estas acciones:
+
+   **PASO 1 - Eliminar la cita:** Usa APIAgentTool para eliminar la cita con el id de la cita:
+   ```json
+   {
+  "accion": "eliminar_cita_por_id",
+  "datos": {
+    "cita_id": [ID_DE_LA_CITA]
+  }
+}
+
+   ```
+
+   **PASO 2 - Eliminar del Google Calendar:** Si la cita tiene `google_calendar_event_id`, usa CalendarAgentTool para eliminarla del calendario:
+   ```json
+   {
+     "accion": "ELIMINAR_EVENTO_CALENDARIO",
+     "datos": {
+       "event_id": "[GOOGLE_CALENDAR_EVENT_ID]"
+     }
+   }
+   ```
+
+5. **Confirmación de Cancelación:** Informa al usuario que la cancelación fue exitosa:
+
+```
+✅ **Cita Cancelada Exitosamente**
+
+Tu cita del **[FECHA] a las [HORA]** para **[SERVICIO]** ha sido cancelada correctamente.
+
+📧 **¿Qué sigue?**
+• El evento ha sido eliminado de Google Calendar
+• El profesional ha sido notificado de la cancelación
+• Si deseas agendar una nueva cita, puedes hacerlo escribiendo "agendar cita"
+
+¡Gracias por informarnos con anticipación! 😊
+```
+
+### Estructura de Respuesta para Cancelación Exitosa:
+```json
+{
+  "cliente": {
+    "mensaje": "✅ **Cita Cancelada Exitosamente**\n\nTu cita del **[FECHA] a las [HORA]** para **[SERVICIO]** ha sido cancelada correctamente.\n\n📧 **¿Qué sigue?**\n• El evento ha sido eliminado de Google Calendar\n• El profesional ha sido notificado de la cancelación\n• Si deseas agendar una nueva cita, puedes hacerlo escribiendo \"agendar cita\"\n\n¡Gracias por informarnos con anticipación! 😊",
+    "estado_conversacion": {
+      "paso_actual": "cita_cancelada_exitosamente",
+      "datos_recolectados": {
+        "cita_cancelada_id": "[ID_CITA]",
+        "motivo_cancelacion": "solicitud_cliente",
+        "fecha_cancelacion": "[FECHA_ACTUAL]"
+      },
+      "siguiente_accion_esperada": "proceso_completado"
+    }
+  },
+  "profesional": {
+    "notificar": true,
+    "datos": {
+      "nombre": "[NOMBRE_PROFESIONAL]",
+      "whatsapp": "[NUMERO_WHATSAPP]",
+      "email": "[EMAIL_PROFESIONAL]"
+    },
+    "mensaje_sugerido": "Hola [NOMBRE_PROFESIONAL], el cliente [NOMBRE_CLIENTE] ha cancelado su cita del [FECHA] a las [HORA] para [SERVICIO]. La cita ha sido eliminada del sistema y del calendario."
+  }
+}
+```
+
+**CRÍTICO - DIFERENCIA ENTRE ACTUALIZAR Y ELIMINAR:**
+- **actualizar_cita:** Se usa para cambiar el estado a "CANCELADO" pero mantener el registro en la base de datos para historial
+- **eliminar_cita_por_id:** Se usa para eliminar completamente el registro de la cita de la base de datos
+
+**RECOMENDACIÓN:** Para cancelaciones normales, usa "actualizar_cita" con estado "CANCELADO" para mantener el historial. Solo usa "eliminar_cita_por_id" si hay un error técnico o duplicado que requiera eliminación completa.
+
+### Validaciones de Cancelación:
+
+1. **Tiempo de Cancelación:** Opcionalmente, puedes verificar si la cancelación se hace con suficiente anticipación
+2. **Estado de la Cita:** Solo permitir cancelar citas en estados como "AGENDADO", "PRIMER_CONFIRMADO", etc. No permitir cancelar citas ya "COMPLETADAS"
+3. **Rollback:** Si falla la eliminación del calendario pero la BD se actualizó, registrar el problema para seguimiento manual
+
+**CRÍTICO - CONSISTENCIA:** Al igual que en el agendamiento, mantén consistencia entre la base de datos y Google Calendar. Si una acción falla, registra el problema para seguimiento.
 
 ## 5. Reglas Clave de Comportamiento
 

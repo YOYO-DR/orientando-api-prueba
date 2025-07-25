@@ -1,7 +1,7 @@
 from rest_framework import serializers
 import logging
-from datetime import datetime
-from django.utils import timezone
+from datetime import datetime, timezone
+from django.utils import timezone as django_timezone
 from zoneinfo import ZoneInfo
 from .models import (
     Usuario, EstadoChat, Profesional, Cliente, Producto, 
@@ -232,7 +232,7 @@ class CitaSerializer(serializers.ModelSerializer):
             logger.info(f"Fecha con timezone Colombia: {fecha_con_timezone}")
             
             # Convertir a UTC para almacenamiento en DB
-            fecha_utc = fecha_con_timezone.astimezone(timezone.utc)
+            fecha_utc = fecha_con_timezone.astimezone(timezone.utc)  # timezone.utc del módulo datetime
             logger.info(f"Fecha UTC para DB: {fecha_utc}")
             
             return fecha_utc  # Retornamos en UTC para almacenamiento correcto
@@ -257,7 +257,7 @@ class CitaSerializer(serializers.ModelSerializer):
             logger.info(f"Fecha con timezone Colombia: {fecha_con_timezone}")
             
             # Convertir a UTC para almacenamiento en DB
-            fecha_utc = fecha_con_timezone.astimezone(timezone.utc)
+            fecha_utc = fecha_con_timezone.astimezone(timezone.utc)  # timezone.utc del módulo datetime
             logger.info(f"Fecha UTC para DB: {fecha_utc}")
             
             return fecha_utc  # Retornamos en UTC para almacenamiento correcto
