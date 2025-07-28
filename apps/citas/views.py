@@ -898,7 +898,7 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
     incluyendo filtros por estado, fecha y profesional.
     """
     queryset = Cita.objects.select_related(
-        'cliente', 'producto', 'profesional_asignado', 'estado_actual'
+        'cliente__usuario', 'producto', 'profesional_asignado', 'estado_actual'
     ).all()
     permission_classes = [IsApiKeyOrAuthenticated]
 
@@ -930,7 +930,10 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
         
         logger.info(f"Parámetros recibidos - fecha_inicio: {fecha_inicio}, fecha_fin: {fecha_fin}")
         
-        queryset = self.get_queryset()
+        # Usar queryset optimizado que incluye el usuario del cliente para el número de documento
+        queryset = Cita.objects.select_related(
+            'cliente__usuario', 'producto', 'profesional_asignado', 'estado_actual'
+        ).all()
         
         if fecha_inicio:
             logger.info(f"APLICANDO FILTRO fecha_inicio >= {fecha_inicio}")

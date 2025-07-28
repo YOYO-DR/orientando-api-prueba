@@ -527,8 +527,9 @@ class CitaListSerializer(serializers.ModelSerializer):
     """Serializador simplificado para listados de citas"""
     cita_id = serializers.IntegerField(source='id', read_only=True)
     cliente_id = serializers.IntegerField(source='cliente.id', read_only=True)
-    cliente_nombre = serializers.CharField(source='cliente.nombres', read_only=True)
-    cliente_apellidos = serializers.CharField(source='cliente.apellidos', read_only=True)
+    cliente_nombre = serializers.CharField(source='cliente.usuario.nombres', read_only=True)
+    cliente_apellidos = serializers.CharField(source='cliente.usuario.apellidos', read_only=True)
+    cliente_numero_documento = serializers.CharField(source='cliente.usuario.numero_documento', read_only=True)
     producto_nombre = serializers.CharField(source='producto.nombre', read_only=True)
     profesional_id = serializers.IntegerField(source='profesional_asignado.id', read_only=True)
     profesional_nombre = serializers.CharField(source='profesional_asignado.nombres', read_only=True)
@@ -539,7 +540,7 @@ class CitaListSerializer(serializers.ModelSerializer):
         model = Cita
         fields = [
             'cita_id', 'cliente_id', 'fecha_hora_inicio', 'fecha_hora_fin',
-            'cliente_nombre', 'cliente_apellidos', 'producto_nombre',
+            'cliente_nombre', 'cliente_apellidos', 'cliente_numero_documento', 'producto_nombre',
             'profesional_id', 'profesional_nombre', 'estado_cita',
             'google_calendar_event_id'
         ]
