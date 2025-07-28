@@ -898,7 +898,7 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
     incluyendo filtros por estado, fecha y profesional.
     """
     queryset = Cita.objects.select_related(
-        'cliente__usuario', 'producto', 'profesional_asignado', 'estado_actual'
+        'cliente', 'producto', 'profesional_asignado', 'estado_actual'
     ).all()
     permission_classes = [IsApiKeyOrAuthenticated]
 
@@ -932,7 +932,7 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
         
         # Usar queryset optimizado que incluye el usuario del cliente para el número de documento
         queryset = Cita.objects.select_related(
-            'cliente__usuario', 'producto', 'profesional_asignado', 'estado_actual'
+            'cliente', 'producto', 'profesional_asignado', 'estado_actual'
         ).all()
         
         if fecha_inicio:
@@ -945,8 +945,9 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
             # Usar __date para comparar solo la fecha, sin hora
             queryset = queryset.filter(fecha_hora_inicio__date__lte=fecha_fin)
         
-        # Logging del SQL generado
-        logger.debug(f"SQL Query generado: {queryset.query}")
+        # Contar resultados antes de la paginación
+        total_resultados = queryset.count()
+        logger.info(f"Total de resultados encontrados: {total_resultados}")
         
 
         # Usar paginación como en el list normal
