@@ -1008,8 +1008,7 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
                                 }
                             }
                         ],
-                        "count": 1,
-                        "total_encontrados": 1
+                        "count": 1
                     }
                 }
             }
@@ -1168,8 +1167,7 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
             logger.info(f"Aplicando paginación - Items en página actual: {len(resultados)}")
             response_data = {
                 'results': resultados,
-                'count': len(resultados),
-                'total_encontrados': total_resultados
+                'count': len(resultados)
             }
             logger.info("=== FIN - Retornando resultados paginados con información completa ===")
             return self.get_paginated_response(response_data)
@@ -1177,8 +1175,7 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
             logger.info(f"=== FIN - Retornando todos los resultados con información completa ({len(resultados)} items) ===")
             return Response({
                 'results': resultados,
-                'count': len(resultados),
-                'total_encontrados': total_resultados
+                'count': len(resultados)
             })
 
     @extend_schema(
