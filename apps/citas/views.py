@@ -963,6 +963,230 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
         return Response(serializer.data)
 
     @extend_schema(
+        description="Obtener citas por rango de fechas con información completa",
+        responses={200: {
+            "description": "Lista de citas con información completa",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "results": [
+                            {
+                                "cita": {
+                                    "id": 123,
+                                    "fecha_hora_inicio": "25/12/2024 14:30",
+                                    "fecha_hora_fin": "25/12/2024 15:30",
+                                    "observaciones": "Consulta psicológica",
+                                    "google_calendar_event_id": "evento_123",
+                                    "google_calendar_url_event": "https://calendar.google.com/event",
+                                    "estado_actual": "Agendado"
+                                },
+                                "cliente": {
+                                    "usuario_id": 456,
+                                    "nombres": "Juan Carlos",
+                                    "apellidos": "Pérez García",
+                                    "numero_documento": "12345678",
+                                    "email": "juan@email.com",
+                                    "celular": "3001234567",
+                                    "edad": 25,
+                                    "barrio": "Centro",
+                                    "direccion": "Calle 123 #45-67",
+                                    "colegio": "Colegio ABC"
+                                },
+                                "profesional": {
+                                    "profesional_id": 789,
+                                    "nombres": "Dr. María Elena",
+                                    "apellidos": "González",
+                                    "email": "maria@orientando.com",
+                                    "cargo": "Psicóloga Clínica",
+                                    "numero_whatsapp": "3007654321"
+                                },
+                                "producto": {
+                                    "producto_id": 10,
+                                    "nombre": "Orientación Vocacional",
+                                    "descripcion": "Proceso de orientación vocacional",
+                                    "duracion_minutos": 60
+                                }
+                            }
+                        ],
+                        "count": 1,
+                        "total_encontrados": 1
+                    }
+                }
+            }
+        }}
+    )
+    @action(detail=False, methods=['get'], url_path='por-fecha-completo')
+    def por_fecha_completo(self, request):
+        """
+        Filtrar citas por rango de fechas con información completa de cita, cliente, profesional y producto
+        
+        Parámetros:
+        - fecha_inicio: Fecha de inicio del rango (YYYY-MM-DD o YYYY-MM-DDTHH:MM:SS)
+        - fecha_fin: Fecha de fin del rango (YYYY-MM-DD o YYYY-MM-DDTHH:MM:SS)
+        
+        Retorna información completa estructurada por separado para cada entidad.
+        """
+        logger.info("=== INICIO - Endpoint por_fecha_completo llamado ===")
+        
+        fecha_inicio = request.query_params.get('fecha_inicio', None)
+        fecha_fin = request.query_params.get('fecha_fin', None)
+        
+        logger.info(f"Parámetros recibidos - fecha_inicio: {fecha_inicio}, fecha_fin: {fecha_fin}")
+        
+        # Usar queryset optimizado con todas las relaciones necesarias
+        queryset = Cita.objects.select_related(
+            'cliente', 'producto', 'profesional_asignado', 'estado_actual'
+        ).prefetch_related(
+            # Para obtener información del Cliente (relación con Usuario)
+            'cliente__cliente_set',
+            # Para obtener información del Profesional (relación con Usuario)  
+            'profesional_asignado__profesional_set'
+        ).all()
+        
+        if fecha_inicio:
+            logger.info(f"APLICANDO FILTRO fecha_inicio >= {fecha_inicio}")
+            queryset = queryset.filter(fecha_hora_inicio__date__gte=fecha_inicio)
+            
+        if fecha_fin:
+            logger.info(f"APLICANDO FILTRO fecha_fin <= {fecha_fin}")
+            queryset = queryset.filter(fecha_hora_inicio__date__lte=fecha_fin)
+        
+        total_resultados = queryset.count()
+        logger.info(f"Total de resultados encontrados: {total_resultados}")
+        
+        # Aplicar paginación si está configurada
+        page = self.paginate_queryset(queryset)
+        citas_a_procesar = page if page is not None else queryset
+        
+        # Construir respuesta con información completa
+        resultados = []
+        
+        for cita in citas_a_procesar:
+            logger.info(f"Procesando cita ID: {cita.id}")
+            
+            # Información básica de la cita
+            cita_data = {
+                'id': cita.id,
+                'fecha_hora_inicio': cita.fecha_hora_inicio.strftime('%d/%m/%Y %H:%M') if cita.fecha_hora_inicio else None,
+                'fecha_hora_fin': cita.fecha_hora_fin.strftime('%d/%m/%Y %H:%M') if cita.fecha_hora_fin else None,
+                'observaciones': cita.observaciones,
+                'google_calendar_event_id': cita.google_calendar_event_id,
+                'google_calendar_url_event': cita.google_calendar_url_event,
+                'estado_actual': cita.get_estado_actual_nombre() if hasattr(cita, 'get_estado_actual_nombre') else 'Sin estado'
+            }
+            
+            # Información del cliente (Usuario que es cliente)
+            cliente_data = None
+            if cita.cliente:
+                # Buscar el perfil Cliente asociado al Usuario
+                try:
+                    from .models import Cliente
+                    cliente_perfil = Cliente.objects.select_related('usuario', 'estado_chat').get(usuario=cita.cliente)
+                    cliente_data = {
+                        'usuario_id': cita.cliente.id,
+                        'nombres': cita.cliente.nombres,
+                        'apellidos': cita.cliente.apellidos,
+                        'tipo_documento': cita.cliente.tipo_documento,
+                        'numero_documento': cita.cliente.numero_documento,
+                        'email': cita.cliente.email,
+                        'celular': cita.cliente.celular,
+                        'edad': cliente_perfil.edad,
+                        'barrio': cliente_perfil.barrio,
+                        'direccion': cliente_perfil.direccion,
+                        'nombre_acudiente': cliente_perfil.nombre_acudiente,
+                        'remitido_colegio': cliente_perfil.remitido_colegio,
+                        'colegio': cliente_perfil.colegio
+                    }
+                except Cliente.DoesNotExist:
+                    logger.warning(f"No se encontró perfil Cliente para usuario ID: {cita.cliente.id}")
+                    cliente_data = {
+                        'usuario_id': cita.cliente.id,
+                        'nombres': cita.cliente.nombres,
+                        'apellidos': cita.cliente.apellidos,
+                        'tipo_documento': cita.cliente.tipo_documento,
+                        'numero_documento': cita.cliente.numero_documento,
+                        'email': cita.cliente.email,
+                        'celular': cita.cliente.celular,
+                        'edad': None,
+                        'barrio': None,
+                        'direccion': None,
+                        'nombre_acudiente': None,
+                        'remitido_colegio': None,
+                        'colegio': None
+                    }
+            
+            # Información del profesional (Usuario que es profesional)
+            profesional_data = None
+            if cita.profesional_asignado:
+                # Buscar el perfil Profesional asociado al Usuario
+                try:
+                    from .models import Profesional
+                    profesional_perfil = Profesional.objects.select_related('usuario').get(usuario=cita.profesional_asignado)
+                    profesional_data = {
+                        'profesional_id': cita.profesional_asignado.id,
+                        'nombres': cita.profesional_asignado.nombres,
+                        'apellidos': cita.profesional_asignado.apellidos,
+                        'tipo_documento': cita.profesional_asignado.tipo_documento,
+                        'numero_documento': cita.profesional_asignado.numero_documento,
+                        'email': cita.profesional_asignado.email,
+                        'celular': cita.profesional_asignado.celular,
+                        'cargo': profesional_perfil.cargo,
+                        'numero_whatsapp': profesional_perfil.numero_whatsapp
+                    }
+                except Profesional.DoesNotExist:
+                    logger.warning(f"No se encontró perfil Profesional para usuario ID: {cita.profesional_asignado.id}")
+                    profesional_data = {
+                        'profesional_id': cita.profesional_asignado.id,
+                        'nombres': cita.profesional_asignado.nombres,
+                        'apellidos': cita.profesional_asignado.apellidos,
+                        'tipo_documento': cita.profesional_asignado.tipo_documento,
+                        'numero_documento': cita.profesional_asignado.numero_documento,
+                        'email': cita.profesional_asignado.email,
+                        'celular': cita.profesional_asignado.celular,
+                        'cargo': None,
+                        'numero_whatsapp': None
+                    }
+            
+            # Información del producto
+            producto_data = None
+            if cita.producto:
+                producto_data = {
+                    'producto_id': cita.producto.id,
+                    'nombre': cita.producto.nombre,
+                    'descripcion': cita.producto.descripcion,
+                    'es_agendable_por_bot': cita.producto.es_agendable_por_bot,
+                    'duracion_minutos': cita.producto.duracion_minutos
+                }
+            
+            # Agregar al resultado
+            resultado_cita = {
+                'cita': cita_data,
+                'cliente': cliente_data,
+                'profesional': profesional_data,
+                'producto': producto_data
+            }
+            
+            resultados.append(resultado_cita)
+        
+        # Preparar respuesta
+        if page is not None:
+            logger.info(f"Aplicando paginación - Items en página actual: {len(resultados)}")
+            response_data = {
+                'results': resultados,
+                'count': len(resultados),
+                'total_encontrados': total_resultados
+            }
+            logger.info("=== FIN - Retornando resultados paginados con información completa ===")
+            return self.get_paginated_response(response_data)
+        else:
+            logger.info(f"=== FIN - Retornando todos los resultados con información completa ({len(resultados)} items) ===")
+            return Response({
+                'results': resultados,
+                'count': len(resultados),
+                'total_encontrados': total_resultados
+            })
+
+    @extend_schema(
         description="Cambiar estado de una cita por ID (enviado en JSON)",
         request={
             "application/json": {
