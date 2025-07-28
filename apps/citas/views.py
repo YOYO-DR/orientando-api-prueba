@@ -1036,11 +1036,6 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
         # Usar queryset optimizado con todas las relaciones necesarias
         queryset = Cita.objects.select_related(
             'cliente', 'producto', 'profesional_asignado', 'estado_actual'
-        ).prefetch_related(
-            # Para obtener información del Cliente (relación con Usuario)
-            'cliente__cliente_set',
-            # Para obtener información del Profesional (relación con Usuario)  
-            'profesional_asignado__profesional_set'
         ).all()
         
         if fecha_inicio:
