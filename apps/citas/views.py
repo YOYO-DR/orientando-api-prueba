@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
 from drf_spectacular.utils import extend_schema, extend_schema_view
+from zoneinfo import ZoneInfo
 import logging
 
 # Logger específico para este módulo
@@ -1059,10 +1060,21 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
             logger.info(f"Procesando cita ID: {cita.id}")
             
             # Información básica de la cita
+            # Convertir fechas de UTC a zona horaria de Colombia (UTC-5)
+            zona_colombia = ZoneInfo('America/Bogota')
+            
+            fecha_inicio_colombia = None
+            if cita.fecha_hora_inicio:
+                fecha_inicio_colombia = cita.fecha_hora_inicio.astimezone(zona_colombia).strftime('%d/%m/%Y %H:%M')
+            
+            fecha_fin_colombia = None
+            if cita.fecha_hora_fin:
+                fecha_fin_colombia = cita.fecha_hora_fin.astimezone(zona_colombia).strftime('%d/%m/%Y %H:%M')
+            
             cita_data = {
                 'id': cita.id,
-                'fecha_hora_inicio': cita.fecha_hora_inicio.strftime('%d/%m/%Y %H:%M') if cita.fecha_hora_inicio else None,
-                'fecha_hora_fin': cita.fecha_hora_fin.strftime('%d/%m/%Y %H:%M') if cita.fecha_hora_fin else None,
+                'fecha_hora_inicio': fecha_inicio_colombia,
+                'fecha_hora_fin': fecha_fin_colombia,
                 'observaciones': cita.observaciones,
                 'google_calendar_event_id': cita.google_calendar_event_id,
                 'google_calendar_url_event': cita.google_calendar_url_event,
