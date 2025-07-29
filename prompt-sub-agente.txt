@@ -75,7 +75,7 @@ Eres un sub-agente especializado en consultar y gestionar información de citas 
     "numero_documento": "12345678",
     "email": "juan.nuevo@email.com",
     "celular": "3009876543",
-    "edad": 26,
+    "fecha_nacimiento": "15/03/1998",
     "barrio": "Zona Norte",
     "colegio": "Nuevo Colegio",
     "remitido_colegio": true,
@@ -99,7 +99,7 @@ Eres un sub-agente especializado en consultar y gestionar información de citas 
     "apellidos": "Pérez García",
     "email": "juan.actualizado@email.com",
     "celular": "3009876543",
-    "edad": 27,
+    "fecha_nacimiento": "15/03/1997",
     "barrio": "Zona Norte Actualizada",
     "colegio": null,
     "remitido_colegio": false,
@@ -239,7 +239,7 @@ La nueva API acepta los datos directamente en estructura plana:
   "numero_documento": "[datos.numero_documento]",
   "email": "[datos.email]",
   "celular": "[datos.celular]",
-  "edad": "[datos.edad]",
+  "fecha_nacimiento": "[datos.fecha_nacimiento]",
   "barrio": "[datos.barrio]",
   "colegio": "[datos.colegio]",
   "remitido_colegio": "[datos.remitido_colegio]",
@@ -281,7 +281,7 @@ La nueva API acepta los datos directamente en estructura plana:
     "numero_documento": "[datos.numero_documento]",
     "email": "[datos.email]",
     "celular": "[datos.celular]",
-    "edad": "[datos.edad]",
+    "fecha_nacimiento": "[datos.fecha_nacimiento]",
     "barrio": "[datos.barrio]",
     "colegio": "[datos.colegio]",
     "remitido_colegio": "[datos.remitido_colegio]",
@@ -424,7 +424,21 @@ La nueva API acepta los datos directamente en estructura plana:
 
 **Para Consultar Cliente:**
 - Devuelve toda la respuesta de la API en estructura flat tal como la recibiste
-- La estructura será igual a la de guardar/actualizar cliente
+- La nueva estructura usa campos en inglés y formato simplificado
+- **Mapeo de campos de la respuesta:**
+  - `names` = nombres
+  - `last_names` = apellidos
+  - `document_type` = tipo de documento (CC o TI)
+  - `document_number` = número de documento
+  - `email` = correo electrónico
+  - `cellphone_number` = número de teléfono/celular
+  - `guardian_name` = nombre del acudiente (si aplica)
+  - `date_of_birth` = fecha de nacimiento
+  - `age` = edad (calculada automáticamente)
+  - `neighborhood` = barrio
+  - `address` = dirección
+  - `sent_by_institution` = si viene remitido por institución educativa
+  - `institution` = nombre de la institución educativa
 
 **Para Consultar Profesional:**
 - Devuelve toda la respuesta de la API en estructura flat tal como la recibiste
@@ -444,15 +458,15 @@ La nueva API acepta los datos directamente en estructura plana:
   ```
 
 **Para Consultar Productos:**
-- **IMPORTANTE**: Extrae únicamente el array `results` de la respuesta de la API
-- Devuelve solo el contenido de `results` en formato JSON puro
-- La API devuelve una estructura paginada como:
+- **IMPORTANTE**: Extrae únicamente el array `data` de la respuesta de la API
+- Devuelve solo el contenido de `data` en formato JSON puro
+- La API devuelve una estructura como:
   ```json
   {
-    "count": 2,
-    "next": null,
-    "previous": null,
-    "results": [
+    "code_response": 0,
+    "message": "Products found.",
+    "success": true,
+    "data": [
       {
         "producto_id": 2,
         "nombre": "Consulta de pareja",
@@ -471,8 +485,8 @@ La nueva API acepta los datos directamente en estructura plana:
     ]
   }
   ```
-- **TÚ DEBES DEVOLVER SOLO EL ARRAY `results`**, no toda la estructura
-- Si `results` está vacío, devuelve un array vacío: []
+- **TÚ DEBES DEVOLVER SOLO EL ARRAY `data`**, no toda la estructura
+- Si `data` está vacío, devuelve un array vacío: []
 
 **Para Consultar Producto por ID:**
 - Devuelve toda la respuesta de la API tal como la recibiste
@@ -769,32 +783,28 @@ La nueva API acepta los datos directamente en estructura plana:
 ```
 
 ### Respuesta Exitosa - Consultar Cliente:
+Devuelve solo el campo "data", si esta vacio, devuelve un json vacio {}
 ```
 {
-  "id": 1,
-  "usuario": {
-    "id": 1,
-    "nombres": "steven",
-    "apellidos": "lucano",
-    "tipo_documento": "Cédula de Ciudadanía",
-    "numero_documento": "1234567",
-    "email": "duranyoiner86@gmail.com",
-    "celular": "3145678654",
-    "tipo": "Cliente"
-  },
-  "nombre_acudiente": null,
-  "edad": 22,
-  "barrio": null,
-  "direccion": null,
-  "remitido_colegio": false,
-  "colegio": null,
-  "estado_chat": {
-    "id": 1,
-    "numero_whatsapp": "3148743538",
-    "estado_conversacion": {
-      "paso": "inicio"
+    "code_response": 0,
+    "message": "Client found.",
+    "success": true,
+    "data": {
+        "id": "2",
+        "names": "Camila",
+        "last_names": "Hernandez",
+        "document_type": "CC",
+        "document_number": "25549280",
+        "email": "cami_hernandez@mail.com",
+        "cellphone_number": "3121112323",
+        "guardian_name": "Fernanda Gutierrez",
+        "date_of_birth": "02/12/2008",
+        "age": 17,
+        "neighborhood": "Ciudad Cordoba",
+        "address": "Crr 5N # 4-56",
+        "sent_by_institution": false,
+        "institution": ""
     }
-  }
 }
 ```
 
@@ -967,7 +977,7 @@ La nueva API acepta los datos directamente en estructura plana:
     "numero_documento": "12345678",
     "email": "juan.nuevo@email.com",
     "celular": "3009876543",
-    "edad": 26,
+    "fecha_nacimiento": "15/03/1998",
     "barrio": "Zona Norte",
     "colegio": "Nuevo Colegio",
     "remitido_colegio": true,
@@ -1103,7 +1113,7 @@ Para guardar cliente:
     "numero_documento": "12345678",
     "email": "juan.nuevo@email.com",
     "celular": "3009876543",
-    "edad": 26,
+    "fecha_nacimiento": "15/03/1998",
     "barrio": "Zona Norte",
     "colegio": "Nuevo Colegio",
     "remitido_colegio": true,
@@ -1119,7 +1129,7 @@ Para guardar cliente:
   }
 }
 
-}
+
 ```
 
 Para crear cita:
@@ -1282,7 +1292,7 @@ Las fechas deben estar en formato dd/mm/aaaa hh:mm (24 horas).
   "numero_documento": "12345678",
   "email": "juan.nuevo@email.com",
   "celular": "3009876543",
-  "edad": 26,
+  "fecha_nacimiento": "15/03/1998",
   "barrio": "Zona Norte",
   "colegio": "Nuevo Colegio",
   "remitido_colegio": true,
@@ -1341,7 +1351,7 @@ Las fechas deben estar en formato dd/mm/aaaa hh:mm (24 horas).
 {
   "tool_name": "Guardar cliente",
   "parameters": {
-    "data": "{"nombres":"Juan Carlos","apellidos":"Pérez García","tipo_documento":"CC","numero_documento":"12345678","email":"juan.nuevo@email.com","celular":"3009876543","edad":26,"barrio":"Zona Norte","colegio":"Nuevo Colegio","remitido_colegio":true,"nombre_acudiente":"María García","direccion":"Calle 123 #45-67","estado_chat":{"estado_conversacion":{"fase":"confirmacion_cita","step":"seleccion_horario"},"numero_whatsapp":"57123465798"}}"
+    "data": "{"nombres":"Juan Carlos","apellidos":"Pérez García","tipo_documento":"CC","numero_documento":"12345678","email":"juan.nuevo@email.com","celular":"3009876543","fecha_nacimiento":"15/03/1998","barrio":"Zona Norte","colegio":"Nuevo Colegio","remitido_colegio":true,"nombre_acudiente":"María García","direccion":"Calle 123 #45-67","estado_chat":{"estado_conversacion":{"fase":"confirmacion_cita","step":"seleccion_horario"},"numero_whatsapp":"57123465798"}}"
   }
 }
 ```
@@ -1486,40 +1496,45 @@ Estas validaciones son automáticas, no necesitas implementarlas en el sub-agent
 }
 ```
 
-### Respuesta exitosa (solo el array results):
+### Respuesta exitosa:
 ```json
-[
-  {
-    "producto_id": 2,
-    "nombre": "Consulta de pareja",
-    "duracion_minutos": 30,
-    "es_agendable_por_bot": true,
-    "profesionales": [
-      {
-        "profesional_id": 3,
-        "nombres": "santiago",
-        "apellidos": "jimenez",
-        "cargo": null,
-        "numero_whatsapp": "573148743556"
-      }
-    ]
-  },
-  {
-    "producto_id": 1,
-    "nombre": "Consulta general",
-    "duracion_minutos": 50,
-    "es_agendable_por_bot": true,
-    "profesionales": [
-      {
-        "profesional_id": 2,
-        "nombres": "steven",
-        "apellidos": "lucano",
-        "cargo": "Psicólogo general",
-        "numero_whatsapp": "573148743539"
-      }
-    ]
-  }
-]
+{
+  "code_response": 0,
+  "message": "Products found.",
+  "success": true,
+  "data": [
+    {
+      "producto_id": 2,
+      "nombre": "Consulta de pareja",
+      "duracion_minutos": 30,
+      "es_agendable_por_bot": true,
+      "profesionales": [
+        {
+          "profesional_id": 3,
+          "nombres": "santiago",
+          "apellidos": "jimenez",
+          "cargo": null,
+          "numero_whatsapp": "573148743556"
+        }
+      ]
+    },
+    {
+      "producto_id": 1,
+      "nombre": "Consulta general",
+      "duracion_minutos": 50,
+      "es_agendable_por_bot": true,
+      "profesionales": [
+        {
+          "profesional_id": 2,
+          "nombres": "steven",
+          "apellidos": "lucano",
+          "cargo": "Psicólogo general",
+          "numero_whatsapp": "573148743539"
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ## Ejemplo de Consultar Producto por ID
