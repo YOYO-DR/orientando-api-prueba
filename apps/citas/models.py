@@ -23,6 +23,7 @@ class EstadoCitaEnum(models.TextChoices):
     PENDIENTE_2H = 'Pendiente Segunda Confirmación 2 Horas', _('Pendiente Segunda Confirmación 2 Horas')
     SEGUNDO_CONFIRMADO = 'Segundo Confirmado', _('Segundo Confirmado')
     FINALIZADO = 'Finalizado', _('Finalizado')
+    CANCELADO = 'Cancelado', _('Cancelado')
 
 
 class Usuario(models.Model):

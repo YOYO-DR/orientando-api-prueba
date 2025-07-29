@@ -1274,9 +1274,10 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
         - PENDIENTE_2H
         - SEGUNDO_CONFIRMADO
         - FINALIZADO
+        - CANCELADO
         
         Estos se convierten automáticamente a los valores de base de datos:
-        - "Agendado", "Notificado Profesional", "Pendiente Primer Confirmación 24 Horas", etc.
+        - "Agendado", "Notificado Profesional", "Pendiente Primer Confirmación 24 Horas", "Cancelado", etc.
         """
         logger.info("=== INICIO - Cambio de estado de cita por ID (desde JSON) ===")
         
@@ -1290,6 +1291,7 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
             'PENDIENTE_2H': EstadoCitaEnum.PENDIENTE_2H.value,
             'SEGUNDO_CONFIRMADO': EstadoCitaEnum.SEGUNDO_CONFIRMADO.value,
             'FINALIZADO': EstadoCitaEnum.FINALIZADO.value,
+            'CANCELADO': EstadoCitaEnum.CANCELADO.value,
         }
         
         data = request.data
@@ -1667,7 +1669,7 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @extend_schema(
-        description="Eliminar cita por ID (enviado en JSON)",
+        description="Cancelar cita por ID (enviado en JSON)",
         request={
             "application/json": {
                 "example": {
@@ -1677,18 +1679,19 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
         },
         responses={
             200: {
-                "description": "Cita eliminada exitosamente",
+                "description": "Cita cancelada exitosamente",
                 "content": {
                     "application/json": {
                         "example": {
-                            "message": "Cita eliminada exitosamente",
-                            "cita_eliminada": {
+                            "message": "Cita cancelada exitosamente",
+                            "cita_cancelada": {
                                 "id": 123,
                                 "cliente": "Juan Carlos Pérez García",
                                 "producto": "Orientación Vocacional",
                                 "fecha_hora_inicio": "25/12/2024 14:30",
                                 "fecha_hora_fin": "25/12/2024 15:30",
-                                "estado_actual": "AGENDADO"
+                                "estado_anterior": "AGENDADO",
+                                "estado_actual": "CANCELADO"
                             }
                         }
                     }
@@ -1719,10 +1722,13 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
     @action(detail=False, methods=['delete'], url_path='eliminar-por-id')
     def eliminar_por_id(self, request):
         """
-        Eliminar cita utilizando el ID de la cita enviado en el JSON
+        Cancelar cita utilizando el ID de la cita enviado en el JSON
         
-        Este endpoint permite al bot eliminar una cita usando el ID de la cita
-        enviado en el cuerpo de la petición, no en la URL.
+        Este endpoint permite al bot cancelar una cita (cambiar estado a CANCELADO) 
+        usando el ID de la cita enviado en el cuerpo de la petición, no en la URL.
+        
+        NOTA: La cita NO se elimina físicamente de la base de datos, 
+        solo se cambia su estado a "CANCELADO" para mantener el historial.
         
         URL FIJA: /api/citas/eliminar-por-id/
         
@@ -1733,18 +1739,19 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
         
         Respuesta exitosa:
         {
-            "message": "Cita eliminada exitosamente",
-            "cita_eliminada": {
+            "message": "Cita cancelada exitosamente",
+            "cita_cancelada": {
                 "id": 123,
                 "cliente": "Juan Carlos Pérez García",
                 "producto": "Orientación Vocacional",
                 "fecha_hora_inicio": "25/12/2024 14:30",
                 "fecha_hora_fin": "25/12/2024 15:30",
-                "estado_actual": "AGENDADO"
+                "estado_anterior": "AGENDADO",
+                "estado_actual": "CANCELADO"
             }
         }
         """
-        logger.info("=== INICIO - Eliminando cita por ID (desde JSON) ===")
+        logger.info("=== INICIO - Cancelando cita por ID (desde JSON) ===")
         
         data = request.data
         cita_id = data.get('cita_id')
@@ -1763,37 +1770,57 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
                 'cliente', 'producto', 'profesional_asignado', 'estado_actual'
             ).get(id=cita_id)
             
-            logger.info(f"Cita encontrada para eliminar - ID: {cita.id}")
+            logger.info(f"Cita encontrada para cancelar - ID: {cita.id}")
             logger.info(f"Cliente: {cita.cliente.nombres} {cita.cliente.apellidos}")
             logger.info(f"Producto: {cita.producto.nombre}")
             if cita.profesional_asignado:
                 logger.info(f"Profesional: {cita.profesional_asignado.nombres} {cita.profesional_asignado.apellidos}")
-            logger.info(f"Estado actual: {cita.get_estado_actual_nombre()}")
             
-            # Guardar información de la cita antes de eliminarla
+            # Guardar estado anterior
+            estado_anterior = cita.get_estado_actual_nombre()
+            logger.info(f"Estado anterior: {estado_anterior}")
+            
+            # Verificar si la cita ya está cancelada
+            from .models import EstadoCitaEnum
+            if cita.get_estado_actual_nombre() == EstadoCitaEnum.CANCELADO.value:
+                logger.warning(f"La cita ID {cita.id} ya está cancelada")
+                return Response({
+                    'error': 'La cita ya está cancelada',
+                    'estado_actual': EstadoCitaEnum.CANCELADO.value
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Cambiar estado a CANCELADO usando transacción para asegurar consistencia
+            from django.db import transaction
+            
+            with transaction.atomic():
+                logger.info(f"Cambiando estado de cita ID {cita.id} a CANCELADO")
+                
+                # Usar el método del modelo para cambiar estado
+                historial_creado = cita.cambiar_estado(
+                    nuevo_estado=EstadoCitaEnum.CANCELADO.value,
+                    observaciones_adicionales="Cita cancelada por solicitud"
+                )
+                
+                logger.info(f"Estado cambiado exitosamente a CANCELADO")
+                logger.info(f"Historial creado - ID: {historial_creado.id}")
+            
+            # Guardar información de la cita cancelada
             cita_info = {
                 'id': cita.id,
                 'cliente': f"{cita.cliente.nombres} {cita.cliente.apellidos}",
                 'producto': cita.producto.nombre,
                 'fecha_hora_inicio': cita.fecha_hora_inicio.strftime('%d/%m/%Y %H:%M') if cita.fecha_hora_inicio else None,
                 'fecha_hora_fin': cita.fecha_hora_fin.strftime('%d/%m/%Y %H:%M') if cita.fecha_hora_fin else None,
-                'estado_actual': cita.get_estado_actual_nombre(),
+                'estado_anterior': estado_anterior,
+                'estado_actual': EstadoCitaEnum.CANCELADO.value,
                 'google_calendar_event_id': cita.google_calendar_event_id,
                 'google_calendar_url_event': cita.google_calendar_url_event
             }
             
-            # Eliminar la cita usando transacción para asegurar consistencia
-            from django.db import transaction
-            
-            with transaction.atomic():
-                logger.info(f"Eliminando cita ID: {cita.id}")
-                cita.delete()
-                logger.info("Cita eliminada exitosamente de la base de datos")
-            
-            logger.info("=== FIN - Cita eliminada exitosamente por ID (desde JSON) ===")
+            logger.info("=== FIN - Cita cancelada exitosamente por ID (desde JSON) ===")
             return Response({
-                'message': 'Cita eliminada exitosamente',
-                'cita_eliminada': cita_info
+                'message': 'Cita cancelada exitosamente',
+                'cita_cancelada': cita_info
             })
                 
         except Cita.DoesNotExist:
@@ -1801,8 +1828,13 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
             return Response({
                 'error': 'Cita no encontrada'
             }, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as e:
+            logger.error(f"Error de validación: {str(e)}")
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            logger.error(f"Error eliminando cita por ID: {str(e)}")
+            logger.error(f"Error cancelando cita por ID: {str(e)}")
             return Response({
                 'error': 'Error interno del servidor',
                 'detalles': str(e)
