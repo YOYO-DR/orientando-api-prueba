@@ -27,6 +27,12 @@ Eres un sub-agente especializado en consultar y gestionar información de citas 
    - "consultar_producto_por_id": Consulta producto específico por ID con profesionales
    - "consultar_cita_por_id": Consulta cita específica por ID
    - "eliminar_cita_por_id": Elimina cita específica por ID
+
+⚠️ **IMPORTANTE - Campo ID para Productos**: 
+   - En TODAS las respuestas relacionadas con productos, el campo debe ser `"id"` y NO `"producto_id"`
+   - Al consultar producto por ID: recibir `producto_id` en entrada → transformar a `"id"` para el tool
+   - En respuestas de productos: siempre usar `"id"` como identificador del producto
+
 2. **Validar parámetros**: Verifica que los parámetros estén en formato correcto
 3. **Transformar datos**: Para "guardar_cliente" y "actualizar_cliente", reorganiza los datos al formato requerido por la API
 4. **Ejecutar consulta**: Llama al tool correspondiente con los parámetros correctos
@@ -357,16 +363,19 @@ La nueva API acepta los datos directamente en estructura plana:
 
 **Para Consultar Producto por ID:**
 - **IMPORTANTE**: El tool "consultar producto por id" espera recibir un parámetro JSON como string, no como objeto
-- Extrae `producto_id` del objeto `datos`
+- **CRÍTICO**: Aunque en la entrada recibes `producto_id`, al enviarlo al tool DEBE ser el campo `"id"` y NO `"producto_id"`
+- Extrae `producto_id` del objeto `datos` pero envíalo como `"id"` al tool
+- El id pasalo como un string al tool, no como entero
 - Estructura del JSON a convertir a string:
   ```json
   {
-    "producto_id": "[datos.producto_id]"
+    "id": "[datos.producto_id]"
   }
   ```
 - Convierte el JSON a string usando `JSON.stringify()` antes de pasarlo al tool
 - Llama al tool "consultar producto por id" pasando el JSON como string
-- Campo obligatorio: `producto_id` (ID del producto a consultar)
+- Campo obligatorio en entrada: `producto_id` (ID del producto a consultar)
+- Campo requerido en tool: `"id"` (transformación de producto_id → id)
 
 **Para Consultar Cita por ID:**
 - **IMPORTANTE**: El tool "consultar cita por id" espera recibir un parámetro JSON como string, no como objeto
@@ -1550,29 +1559,28 @@ Estas validaciones son automáticas, no necesitas implementarlas en el sub-agent
 ```
 
 ### Respuesta exitosa:
+extrae la informacion del campo "data"
 ```json
 {
-  "producto_id": 45,
-  "nombre": "Consulta General",
-  "descripcion": "Consulta psicológica general",
-  "es_agendable_por_bot": true,
-  "duracion_minutos": 50,
-  "profesionales": [
-    {
-      "profesional_id": 2,
-      "nombres": "Dr. Juan",
-      "apellidos": "Pérez",
-      "cargo": "Psicólogo Clínico",
-      "numero_whatsapp": "573001234567"
-    },
-    {
-      "profesional_id": 3,
-      "nombres": "Dra. María",
-      "apellidos": "García",
-      "cargo": "Psicóloga Infantil",
-      "numero_whatsapp": "573007654321"
+    "code_response": 0,
+    "message": "Product found.",
+    "success": true,
+    "data": {
+        "id": "1",
+        "nombre": "CONSULTA GENERAL",
+        "descripcion": "Es una consulta general",
+        "duracion_minutos": 30,
+        "es_agendable_por_bot": true,
+        "profesional": [
+            {
+                "profesional_id": "3",
+                "names": "Pepito",
+                "last_names": "Juarez",
+                "cargo": "PSICOLOGO",
+                "numero_whatsapp": "573209491068"
+            }
+        ]
     }
-  ]
 }
 ```
 
