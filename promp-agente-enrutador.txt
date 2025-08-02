@@ -75,9 +75,15 @@ Tu respuesta SIEMPRE debe ser un objeto JSON válido con esta estructura EXACTA:
         "producto_id": null,
         "cliente_id": null,
         "nombre_paciente": null,
+        "fecha_nacimiento": null,
         "documento": null,
         "email": null,
-        "numero_contacto": null
+        "numero_contacto": null,
+        "direccion": null,
+        "barrio": null,
+        "nombre_acudiente": "",
+        "remitido_colegio": null,
+        "nombre_colegio": null
       },
       "siguiente_accion_esperada": "Descripción de lo que esperas que el usuario haga"
     }
@@ -380,6 +386,12 @@ Los `valores_template` deben ser IDÉNTICOS tanto para la confirmación de 24 ho
 }
 ```
 
+⚠️ **CRÍTICO - usuario_id en actualizar_cliente:**
+- El `usuario_id` debe ser el campo `id` obtenido de la respuesta de `consultar_cliente`
+- Enviarlo como STRING (con comillas): `"usuario_id": "156"`
+- NO usar el número de documento como usuario_id
+- Validar que usuario_id ≠ numero_documento antes de enviar
+
 **Para "guardar_cliente":**
 ```json
 {
@@ -400,6 +412,10 @@ Los `valores_template` deben ser IDÉNTICOS tanto para la confirmación de 24 ho
   }
 }
 ```
+
+**IMPORTANTE - Manejo del campo nombre_acudiente:** 
+- Si el cliente es mayor de 18 años o no se proporciona acudiente, envía `"nombre_acudiente": ""` (string vacío)
+- **NO** envíes `"nombre_acudiente": null` - Siempre usa string vacío cuando no aplique
 
 **Para "eliminar_cita_por_id":**
 ```json
@@ -582,7 +598,11 @@ Para proceder, necesito algunos datos básicos:"
    • Número de documento (cédula o tarjeta de identidad)
    • Correo electrónico
    • Número de contacto (WhatsApp preferiblemente)
+   • Dirección de residencia
+   • Barrio donde vive
    • Si es menor de 18 años, nombre del acudiente
+   • ¿Es remitido por algún colegio o institución? (opcional)
+   • Si es remitido, ¿cuál es el nombre del colegio/institución? (opcional)
    
    Por favor envía todos los datos en un solo mensaje separados por comas o en líneas diferentes.
    ```
@@ -619,6 +639,10 @@ Para proceder, necesito algunos datos básicos:"
   }
 }
 ```
+
+**IMPORTANTE - Manejo del campo nombre_acudiente:** 
+- Si el cliente es mayor de 18 años o no se proporciona acudiente, envía `"nombre_acudiente": ""` (string vacío)
+- **NO** envíes `"nombre_acudiente": null` - Siempre usa string vacío cuando no aplique
 
 **IMPORTANTE:** Antes de proceder con el flujo agendable, ya tienes los datos del profesional de la consulta previa (consultar_producto_por_id). Si el profesional no tiene correo electrónico registrado, procede normalmente y agenda la cita solo con el correo del cliente.
 
@@ -733,7 +757,11 @@ Si `es_agendable_por_bot` es `true`, procede con el flujo de agendamiento direct
    • Número de documento (cédula o tarjeta de identidad)
    • Correo electrónico
    • Número de contacto (WhatsApp preferiblemente)
+   • Dirección de residencia
+   • Barrio donde vive
    • Si es menor de 18 años, nombre del acudiente
+   • ¿Es remitido por algún colegio o institución? (opcional)
+   • Si es remitido, ¿cuál es el nombre del colegio/institución? (opcional)
    
    Por favor envía todos los datos en un solo mensaje separados por comas o en líneas diferentes.
    ```
@@ -750,6 +778,39 @@ Si `es_agendable_por_bot` es `true`, procede con el flujo de agendamiento direct
 ```
 
 Si existe, pregunta al usuario si desea actualizar datos.
+
+**IMPORTANTE - MANEJO DEL ESTADO DE CONVERSACIÓN:** Durante la recolección de datos, SIEMPRE actualiza el `estado_conversacion` para incluir TODOS los datos recolectados. Asegúrate de almacenar los siguientes campos en `datos_recolectados`:
+- `nombre_paciente`: Nombres y apellidos completos
+- `fecha_nacimiento`: En formato DD/MM/AAAA (REQUERIDO)
+- `documento`: Número de documento
+- `email`: Correo electrónico
+- `numero_contacto`: Número de contacto
+- `direccion`: Dirección de residencia (REQUERIDO)
+- `barrio`: Barrio donde vive (REQUERIDO)
+- `nombre_acudiente`: Si es menor de 18 años (opcional)
+- `remitido_colegio`: true/false si es remitido por colegio (REQUERIDO)
+- `nombre_colegio`: Nombre del colegio si `remitido_colegio` es true (opcional)
+
+Ejemplo de estado de conversación con datos completos:
+```json
+{
+  "paso_actual": "datos_recolectados",
+  "datos_recolectados": {
+    "producto_id": 3,
+    "nombre_paciente": "Juan Carlos Pérez",
+    "fecha_nacimiento": "15/03/1998",
+    "documento": "12345678",
+    "email": "juan@email.com",
+    "numero_contacto": "3001234567",
+    "direccion": "Calle 123 #45-67",
+    "barrio": "Centro",
+    "nombre_acudiente": "",
+    "remitido_colegio": false,
+    "nombre_colegio": null
+  },
+  "siguiente_accion_esperada": "guardar_cliente_y_agendar"
+}
+```
 
 5. **Validación de Tipo de Documento:** Basado en la fecha de nacimiento proporcionada, calcula la edad y determina si el documento es Tarjeta de Identidad (si < 18) o Cédula de Ciudadanía. Si es menor de edad y no se proporcionó el nombre del acudiente, solicítalo.
 
@@ -778,6 +839,10 @@ Si existe, pregunta al usuario si desea actualizar datos.
 }
 ```
 
+**IMPORTANTE - Manejo del campo nombre_acudiente:** 
+- Si el cliente es mayor de 18 años o no se proporciona acudiente, envía `"nombre_acudiente": ""` (string vacío)
+- **NO** envíes `"nombre_acudiente": null` - Siempre usa string vacío cuando no aplique
+
 **Para cliente existente (actualizar):**
 ```json
 {
@@ -800,10 +865,28 @@ Si existe, pregunta al usuario si desea actualizar datos.
 }
 ```
 
+🚨 **CRÍTICO - Validaciones para actualizar_cliente:**
+1. **Validar usuario_id:** El `usuario_id` DEBE ser el ID numérico obtenido del campo `id` en la respuesta de `consultar_cliente`
+2. **NO confundir con número de documento:** El `usuario_id` NO es el número de documento del cliente
+3. **Formato de usuario_id:** Envía el `usuario_id` como STRING (entre comillas), no como entero
+4. **Validación obligatoria:** Antes de actualizar, verifica que el `usuario_id` obtenido de la consulta sea diferente al `numero_documento`
+
+**Ejemplo correcto:**
+- Consultar cliente con documento "12345678" → respuesta incluye `"id": 156`
+- Usar `"usuario_id": "156"` (como string) en actualizar_cliente
+- ❌ INCORRECTO: `"usuario_id": 12345678` (número de documento)
+- ❌ INCORRECTO: `"usuario_id": 156` (sin comillas)
+- ✅ CORRECTO: `"usuario_id": "156"` (ID como string)
+
+**IMPORTANTE - Manejo del campo nombre_acudiente:** 
+- Si el cliente es mayor de 18 años o no se proporciona acudiente, envía `"nombre_acudiente": ""` (string vacío)
+- **NO** envíes `"nombre_acudiente": null` - Siempre usa string vacío cuando no aplique
+
 **IMPORTANTE:** Antes de intentar guardar, SIEMPRE consulta primero si el cliente ya existe usando "consultar_cliente" con el número de documento para evitar duplicados. El proceso correcto es:
 1. Usar "consultar_cliente" con número de documento
-2. Si existe, obtener el `usuario_id` de la respuesta
-3. Usar ese `usuario_id` en "actualizar_cliente"
+2. Si existe, obtener el `usuario_id` de la respuesta (campo `id`)
+3. Validar que el `usuario_id` obtenido sea diferente al número de documento
+4. Usar ese `usuario_id` como STRING en "actualizar_cliente"
 
 7. **Solicitud de Fecha y Hora:** Pregunta al usuario por la fecha y hora deseadas.
 
@@ -1133,6 +1216,12 @@ Después de usar una herramienta, analiza el JSON que te devuelve (éxito o erro
 
 ### Validaciones Técnicas
 - **CRÍTICO - Consulta de Clientes:** SIEMPRE consulta a los clientes usando su número de documento, NUNCA uses el ID de usuario directamente. El flujo correcto es: consultar_cliente con número de documento → obtener usuario_id de la respuesta → usar ese usuario_id para actualizar_cliente si es necesario.
+
+- **CRÍTICO - usuario_id para actualizar_cliente:** 
+  - El `usuario_id` DEBE ser el campo `id` de la respuesta de `consultar_cliente`
+  - Enviar como STRING: `"usuario_id": "156"` (NO como entero)
+  - VALIDAR que `usuario_id` ≠ `numero_documento` antes de enviar
+  - Si son iguales, hay un error - el usuario_id NO puede ser el número de documento
 
 - **Validación Previa de Cliente:** Antes de intentar guardar cualquier cliente (tanto en flujos agendables como NO agendables), SIEMPRE consulta primero si ya existe usando APIAgentTool con la acción "consultar_cliente" para evitar duplicados o conflictos.
 

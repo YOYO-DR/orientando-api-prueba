@@ -3,7 +3,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse
+from drf_spectacular.openapi import AutoSchema
+from drf_spectacular import openapi
 from zoneinfo import ZoneInfo
 import logging
 
@@ -965,55 +967,90 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
 
     @extend_schema(
         description="Obtener citas por rango de fechas con información completa",
-        responses={200: {
-            "description": "Lista de citas con información completa",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "results": [
-                            {
-                                "cita": {
-                                    "id": 123,
-                                    "fecha_hora_inicio": "25/12/2024 14:30",
-                                    "fecha_hora_fin": "25/12/2024 15:30",
-                                    "observaciones": "Consulta psicológica",
-                                    "google_calendar_event_id": "evento_123",
-                                    "google_calendar_url_event": "https://calendar.google.com/event",
-                                    "estado_actual": "Agendado"
-                                },
-                                "cliente": {
-                                    "usuario_id": 456,
-                                    "nombres": "Juan Carlos",
-                                    "apellidos": "Pérez García",
-                                    "numero_documento": "12345678",
-                                    "email": "juan@email.com",
-                                    "celular": "3001234567",
-                                    "edad": 25,
-                                    "barrio": "Centro",
-                                    "direccion": "Calle 123 #45-67",
-                                    "colegio": "Colegio ABC"
-                                },
-                                "profesional": {
-                                    "profesional_id": 789,
-                                    "nombres": "Dr. María Elena",
-                                    "apellidos": "González",
-                                    "email": "maria@orientando.com",
-                                    "cargo": "Psicóloga Clínica",
-                                    "numero_whatsapp": "3007654321"
-                                },
-                                "producto": {
-                                    "producto_id": 10,
-                                    "nombre": "Orientación Vocacional",
-                                    "descripcion": "Proceso de orientación vocacional",
-                                    "duracion_minutos": 60
+        parameters=[
+            openapi.Parameter(
+                name='fecha_inicio',
+                in_=openapi.IN_QUERY,
+                description='Fecha de inicio del rango (YYYY-MM-DD)',
+                type=openapi.TYPE_STRING,
+                format=openapi.FORMAT_DATE,
+                required=False
+            ),
+            openapi.Parameter(
+                name='fecha_fin', 
+                in_=openapi.IN_QUERY,
+                description='Fecha de fin del rango (YYYY-MM-DD)',
+                type=openapi.TYPE_STRING,
+                format=openapi.FORMAT_DATE,
+                required=False
+            )
+        ],
+        responses={
+            200: OpenApiResponse(
+                description="Lista de citas con información completa",
+                response={
+                    "type": "object",
+                    "properties": {
+                        "results": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "cita": {
+                                        "type": "object",
+                                        "properties": {
+                                            "id": {"type": "integer", "example": 123},
+                                            "fecha_hora_inicio": {"type": "string", "example": "25/12/2024 14:30"},
+                                            "fecha_hora_fin": {"type": "string", "example": "25/12/2024 15:30"},
+                                            "observaciones": {"type": "string", "example": "Consulta psicológica"},
+                                            "google_calendar_event_id": {"type": "string", "example": "evento_123"},
+                                            "google_calendar_url_event": {"type": "string", "example": "https://calendar.google.com/event"},
+                                            "estado_actual": {"type": "string", "example": "Agendado"}
+                                        }
+                                    },
+                                    "cliente": {
+                                        "type": "object",
+                                        "properties": {
+                                            "usuario_id": {"type": "integer", "example": 456},
+                                            "nombres": {"type": "string", "example": "Juan Carlos"},
+                                            "apellidos": {"type": "string", "example": "Pérez García"},
+                                            "numero_documento": {"type": "string", "example": "12345678"},
+                                            "email": {"type": "string", "example": "juan@email.com"},
+                                            "celular": {"type": "string", "example": "3001234567"},
+                                            "edad": {"type": "integer", "example": 25},
+                                            "barrio": {"type": "string", "example": "Centro"},
+                                            "direccion": {"type": "string", "example": "Calle 123 #45-67"},
+                                            "colegio": {"type": "string", "example": "Colegio ABC"}
+                                        }
+                                    },
+                                    "profesional": {
+                                        "type": "object", 
+                                        "properties": {
+                                            "profesional_id": {"type": "integer", "example": 789},
+                                            "nombres": {"type": "string", "example": "Dr. María Elena"},
+                                            "apellidos": {"type": "string", "example": "González"},
+                                            "email": {"type": "string", "example": "maria@orientando.com"},
+                                            "cargo": {"type": "string", "example": "Psicóloga Clínica"},
+                                            "numero_whatsapp": {"type": "string", "example": "3007654321"}
+                                        }
+                                    },
+                                    "producto": {
+                                        "type": "object",
+                                        "properties": {
+                                            "producto_id": {"type": "integer", "example": 10},
+                                            "nombre": {"type": "string", "example": "Orientación Vocacional"},
+                                            "descripcion": {"type": "string", "example": "Proceso de orientación vocacional"},
+                                            "duracion_minutos": {"type": "integer", "example": 60}
+                                        }
+                                    }
                                 }
                             }
-                        ],
-                        "count": 1
+                        },
+                        "count": {"type": "integer", "example": 1}
                     }
                 }
-            }
-        }}
+            )
+        }
     )
     @action(detail=False, methods=['get'], url_path='por-fecha-completo')
     def por_fecha_completo(self, request):
