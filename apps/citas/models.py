@@ -22,7 +22,7 @@ class EstadoCitaEnum(models.TextChoices):
     PRIMER_CONFIRMADO = 'Primer Confirmado', _('Primer Confirmado')
     PENDIENTE_6H = 'Pendiente Segunda Confirmación 6 Horas', _('Pendiente Segunda Confirmación 6 Horas')
     SEGUNDO_CONFIRMADO = 'Segundo Confirmado', _('Segundo Confirmado')
-    INFORMADO_AGENTE = 'Informado Agente', _('Informado Agente')
+    INFORMADO_AGENTE_3h = 'Informado Agente 3h', _('Informado Agente 3h')
     FINALIZADO = 'Finalizado', _('Finalizado')
     CANCELADO = 'Cancelado', _('Cancelado')
 

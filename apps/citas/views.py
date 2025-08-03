@@ -1264,7 +1264,7 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
                 "content": {
                     "application/json": {
                         "example": {
-                            "error": "estado_cita inválido. Estados válidos: ['AGENDADO', 'NOTIFICADO_PROFESIONAL', 'PENDIENTE_24H', 'PRIMER_CONFIRMADO', 'PENDIENTE_2H', 'SEGUNDO_CONFIRMADO', 'FINALIZADO']"
+                            "error": "estado_cita inválido. Estados válidos: ['AGENDADO', 'NOTIFICADO_PROFESIONAL', 'PENDIENTE_24H', 'PRIMER_CONFIRMADO', 'PENDIENTE_6H', 'SEGUNDO_CONFIRMADO', 'INFORMADO_AGENTE_3h', 'FINALIZADO', 'CANCELADO']"
                         }
                     }
                 }
@@ -1304,8 +1304,9 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
         - NOTIFICADO_PROFESIONAL  
         - PENDIENTE_24H
         - PRIMER_CONFIRMADO
-        - PENDIENTE_2H
+        - PENDIENTE_6H
         - SEGUNDO_CONFIRMADO
+        - INFORMADO_AGENTE_3h
         - FINALIZADO
         - CANCELADO
         
@@ -1321,8 +1322,9 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
             'NOTIFICADO_PROFESIONAL': EstadoCitaEnum.NOTIFICADO_PROFESIONAL.value,
             'PENDIENTE_24H': EstadoCitaEnum.PENDIENTE_24H.value,
             'PRIMER_CONFIRMADO': EstadoCitaEnum.PRIMER_CONFIRMADO.value,
-            'PENDIENTE_2H': EstadoCitaEnum.PENDIENTE_2H.value,
+            'PENDIENTE_6H': EstadoCitaEnum.PENDIENTE_6H.value,
             'SEGUNDO_CONFIRMADO': EstadoCitaEnum.SEGUNDO_CONFIRMADO.value,
+            'INFORMADO_AGENTE_3h': EstadoCitaEnum.INFORMADO_AGENTE_3h.value,
             'FINALIZADO': EstadoCitaEnum.FINALIZADO.value,
             'CANCELADO': EstadoCitaEnum.CANCELADO.value,
         }
