@@ -3,9 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse
-from drf_spectacular.openapi import AutoSchema
-from drf_spectacular import openapi
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse, OpenApiParameter
 from zoneinfo import ZoneInfo
 import logging
 
@@ -968,20 +966,18 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
     @extend_schema(
         description="Obtener citas por rango de fechas con información completa",
         parameters=[
-            openapi.Parameter(
+            OpenApiParameter(
                 name='fecha_inicio',
-                in_=openapi.IN_QUERY,
+                location=OpenApiParameter.QUERY,
                 description='Fecha de inicio del rango (YYYY-MM-DD)',
-                type=openapi.TYPE_STRING,
-                format=openapi.FORMAT_DATE,
+                type=str,
                 required=False
             ),
-            openapi.Parameter(
+            OpenApiParameter(
                 name='fecha_fin', 
-                in_=openapi.IN_QUERY,
+                location=OpenApiParameter.QUERY,
                 description='Fecha de fin del rango (YYYY-MM-DD)',
-                type=openapi.TYPE_STRING,
-                format=openapi.FORMAT_DATE,
+                type=str,
                 required=False
             )
         ],
