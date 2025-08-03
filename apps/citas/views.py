@@ -1230,7 +1230,7 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
                 "example": {
                     "cita_id": 123,
                     "cliente_id": 456,
-                    "estado_cita": "PRIMER_CONFIRMADO",
+                    "estado_cita": "Primer Confirmado",
                     "observaciones": "Cliente confirmó por WhatsApp"
                 }
             }
@@ -1242,9 +1242,8 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
                     "application/json": {
                         "example": {
                             "message": "Estado de cita actualizado exitosamente",
-                            "estado_anterior": "AGENDADO",
-                            "estado_actual_variable": "PRIMER_CONFIRMADO",
-                            "estado_actual_db": "Primer Confirmado",
+                            "estado_anterior": "Agendado",
+                            "estado_actual": "Primer Confirmado",
                             "fecha_cambio": "2024-12-25T10:30:00Z",
                             "cita": {
                                 "id": 123,
@@ -1264,7 +1263,7 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
                 "content": {
                     "application/json": {
                         "example": {
-                            "error": "estado_cita inválido. Estados válidos: ['AGENDADO', 'NOTIFICADO_PROFESIONAL', 'PENDIENTE_24H', 'PRIMER_CONFIRMADO', 'PENDIENTE_6H', 'SEGUNDO_CONFIRMADO', 'INFORMADO_AGENTE_3h', 'FINALIZADO', 'CANCELADO']"
+                            "error": "estado_cita inválido. Estados válidos: ['Agendado', 'Notificado Profesional', 'Pendiente Primer Confirmación 24 Horas', 'Pendiente Primer Confirmación 24 Horas Mensaje Enviado', 'Primer Confirmado', 'Pendiente Segunda Confirmación 6 Horas', 'Pendiente Segunda Confirmación 6 Horas Mensaje Enviado', 'Segundo Confirmado', 'Informado Agente 3h', 'Finalizado', 'Cancelado']"
                         }
                     }
                 }
@@ -1295,50 +1294,41 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
         {
             "cita_id": 123,
             "cliente_id": 456,
-            "estado_cita": "PRIMER_CONFIRMADO",
+            "estado_cita": "Primer Confirmado",
             "observaciones": "Cliente confirmó por WhatsApp"  // opcional
         }
         
-        Estados válidos (nombres de variables del enum):
-        - AGENDADO
-        - NOTIFICADO_PROFESIONAL  
-        - PENDIENTE_24H
-        - PRIMER_CONFIRMADO
-        - PENDIENTE_6H
-        - SEGUNDO_CONFIRMADO
-        - INFORMADO_AGENTE_3h
-        - FINALIZADO
-        - CANCELADO
+        Estados válidos (valores reales del enum que se guardan en BD):
+        - "Agendado"
+        - "Notificado Profesional"
+        - "Pendiente Primer Confirmación 24 Horas"
+        - "Pendiente Primer Confirmación 24 Horas Mensaje Enviado"
+        - "Primer Confirmado"
+        - "Pendiente Segunda Confirmación 6 Horas"
+        - "Pendiente Segunda Confirmación 6 Horas Mensaje Enviado"
+        - "Segundo Confirmado"
+        - "Informado Agente 3h"
+        - "Finalizado"
+        - "Cancelado"
         
-        Estos se convierten automáticamente a los valores de base de datos:
-        - "Agendado", "Notificado Profesional", "Pendiente Primer Confirmación 24 Horas", "Cancelado", etc.
+        IMPORTANTE: Usar exactamente estos valores con mayúsculas y tildes como se muestran.
         """
         logger.info("=== INICIO - Cambio de estado de cita por ID (desde JSON) ===")
         
-        # Mapeo de nombres de variables del enum a valores de base de datos
+        # Usar directamente los valores del enum que se guardan en base de datos
         from .models import EstadoCitaEnum
-        estado_variable_to_db = {
-            'AGENDADO': EstadoCitaEnum.AGENDADO.value,
-            'NOTIFICADO_PROFESIONAL': EstadoCitaEnum.NOTIFICADO_PROFESIONAL.value,
-            'PENDIENTE_24H': EstadoCitaEnum.PENDIENTE_24H.value,
-            'PRIMER_CONFIRMADO': EstadoCitaEnum.PRIMER_CONFIRMADO.value,
-            'PENDIENTE_6H': EstadoCitaEnum.PENDIENTE_6H.value,
-            'SEGUNDO_CONFIRMADO': EstadoCitaEnum.SEGUNDO_CONFIRMADO.value,
-            'INFORMADO_AGENTE_3h': EstadoCitaEnum.INFORMADO_AGENTE_3h.value,
-            'FINALIZADO': EstadoCitaEnum.FINALIZADO.value,
-            'CANCELADO': EstadoCitaEnum.CANCELADO.value,
-        }
+        estados_validos = [choice[0] for choice in EstadoCitaEnum.choices]
         
         data = request.data
         cita_id = data.get('cita_id')
         cliente_id = data.get('cliente_id')
-        nuevo_estado_variable = data.get('estado_cita')
+        nuevo_estado = data.get('estado_cita')
         observaciones = data.get('observaciones')
         
         logger.info(f"Datos recibidos: {data}")
         logger.info(f"Cita ID extraído del JSON: {cita_id}")
         logger.info(f"Cliente ID extraído del JSON: {cliente_id}")
-        logger.info(f"Nuevo estado variable solicitado: {nuevo_estado_variable}")
+        logger.info(f"Nuevo estado solicitado: {nuevo_estado}")
         logger.info(f"Observaciones: {observaciones}")
         
         if not cita_id:
@@ -1351,22 +1341,19 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
                 'error': 'cliente_id es requerido en el JSON'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        if not nuevo_estado_variable:
+        if not nuevo_estado:
             return Response({
                 'error': 'estado_cita es requerido en el JSON'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Validar que el estado variable sea válido y convertir a valor de DB
-        if nuevo_estado_variable not in estado_variable_to_db:
-            estados_validos = list(estado_variable_to_db.keys())
-            logger.error(f"Estado variable inválido: {nuevo_estado_variable}")
+        # Validar que el estado sea válido (usando valores reales del enum)
+        if nuevo_estado not in estados_validos:
+            logger.error(f"Estado inválido: {nuevo_estado}")
             return Response({
                 'error': f'estado_cita inválido. Estados válidos: {estados_validos}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Convertir el nombre de variable al valor de base de datos
-        nuevo_estado_db = estado_variable_to_db[nuevo_estado_variable]
-        logger.info(f"Estado convertido - Variable: {nuevo_estado_variable} -> DB: {nuevo_estado_db}")
+        logger.info(f"Estado válido recibido: {nuevo_estado}")
         
         try:
             # Buscar la cita con validación de que pertenezca al cliente
@@ -1379,13 +1366,13 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
             logger.info(f"Cliente ID verificado: {cita.cliente.id} == {cliente_id}")
             logger.info(f"Estado actual: {cita.get_estado_actual_nombre()}")
             
-            # Usar el método del modelo para cambiar estado (usando valor de DB)
+            # Usar el método del modelo para cambiar estado (usando valor directo del enum)
             historial_creado = cita.cambiar_estado(
-                nuevo_estado=nuevo_estado_db,
+                nuevo_estado=nuevo_estado,
                 observaciones_adicionales=observaciones
             )
             
-            logger.info(f"Estado cambiado exitosamente a: {nuevo_estado_db} (desde variable: {nuevo_estado_variable})")
+            logger.info(f"Estado cambiado exitosamente a: {nuevo_estado}")
             logger.info(f"Historial creado - ID: {historial_creado.id}")
             
             # Retornar la cita actualizada
@@ -1396,8 +1383,7 @@ class CitaViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
                 'estado_anterior': historial_creado.cita.historial_estados.exclude(
                     id=historial_creado.id
                 ).last().estado_cita if historial_creado.cita.historial_estados.count() > 1 else None,
-                'estado_actual_variable': nuevo_estado_variable,  # Nombre de variable para el bot
-                'estado_actual_db': nuevo_estado_db,  # Valor guardado en DB
+                'estado_actual': nuevo_estado,  # Valor del enum que se guarda en DB
                 'fecha_cambio': historial_creado.fecha_registro,
                 'cita': serializer.data
             }
