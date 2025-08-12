@@ -27,6 +27,7 @@ class EstadoCitaEnum(models.TextChoices):
     INFORMADO_AGENTE_3h = 'Informado Agente 3h', _('Informado Agente 3h')
     FINALIZADO = 'Finalizado', _('Finalizado')
     CANCELADO = 'Cancelado', _('Cancelado')
+    NO_ASISTIO = 'No Asistió', _('No Asistió')
 
 
 class Usuario(models.Model):
